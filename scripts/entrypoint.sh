@@ -60,6 +60,7 @@ validate_env() {
   AGENT_MODEL="${AGENT_MODEL:-claude-sonnet-4-5-20250929}"
   UPSTREAM_REMOTE="${UPSTREAM_REMOTE:-/upstream}"
   MAX_SESSIONS="${MAX_SESSIONS:-20}"
+  AGENT_BRANCH="agent/${AGENT_ID}"
 
   # Use /board/ mount if available, otherwise fall back to workspace-local dirs
   if [ -d "/board/tasks" ]; then
@@ -71,33 +72,46 @@ validate_env() {
 
   log "Agent ${AGENT_ID} starting with role=${AGENT_ROLE} model=${AGENT_MODEL}"
   log "Upstream remote: ${UPSTREAM_REMOTE}"
+  log "Agent branch: ${AGENT_BRANCH}"
   log "Max sessions: ${MAX_SESSIONS}"
   log "Board dir: ${BOARD_DIR}"
 }
 
-# --- Step 2: Clone from upstream ---
+# --- Step 2: Clone from upstream and create agent branch ---
 
 clone_upstream() {
   if [ -d "/workspace/.git" ]; then
     log "Workspace already contains a git repo, skipping clone"
     cd /workspace
-    return 0
-  fi
-
-  if [ "$(ls -A /workspace 2>/dev/null)" ]; then
+  elif [ "$(ls -A /workspace 2>/dev/null)" ]; then
     log "Workspace is non-empty but not a git repo, attempting to use as-is"
     cd /workspace
-    return 0
+  else
+    log "Cloning from upstream: ${UPSTREAM_REMOTE}"
+    if git clone "${UPSTREAM_REMOTE}" /workspace; then
+      log "Clone successful"
+      cd /workspace
+    else
+      log_error "Failed to clone from ${UPSTREAM_REMOTE}"
+      exit 1
+    fi
   fi
 
-  log "Cloning from upstream: ${UPSTREAM_REMOTE}"
-  if git clone "${UPSTREAM_REMOTE}" /workspace; then
-    log "Clone successful"
-    cd /workspace
+  # Create or checkout agent branch from main
+  if git show-ref --verify --quiet "refs/heads/${AGENT_BRANCH}" 2>/dev/null; then
+    git checkout "${AGENT_BRANCH}"
+    log "Checked out existing branch ${AGENT_BRANCH}"
   else
-    log_error "Failed to clone from ${UPSTREAM_REMOTE}"
-    exit 1
+    git checkout -b "${AGENT_BRANCH}"
+    log "Created new branch ${AGENT_BRANCH}"
   fi
+
+  # Pull latest main into agent branch so we start from current state
+  git pull "${UPSTREAM_REMOTE}" main --rebase 2>/dev/null || {
+    git rebase --abort 2>/dev/null || true
+    git pull "${UPSTREAM_REMOTE}" main --no-rebase 2>/dev/null || true
+  }
+  log "Agent branch ${AGENT_BRANCH} is up to date with main"
 }
 
 # --- Step 3: Health check ---
@@ -122,45 +136,32 @@ health_check() {
   log "Health check passed"
 }
 
-# --- Step 4: Sync changes ---
+# --- Step 4: Push agent branch ---
 
-sync_changes() {
+push_branch() {
   local max_retries=3
   local attempt=0
 
   while [ "$attempt" -lt "$max_retries" ]; do
     attempt=$((attempt + 1))
-    log "Sync attempt ${attempt}/${max_retries}"
+    log "Push attempt ${attempt}/${max_retries}"
 
-    # Try rebase-based pull first
-    if git pull "${UPSTREAM_REMOTE}" main --rebase 2>/dev/null; then
-      log "Rebase pull succeeded"
-    else
-      log "Rebase pull failed, aborting rebase and trying merge"
-      git rebase --abort 2>/dev/null || true
-      if ! git pull "${UPSTREAM_REMOTE}" main --no-rebase 2>/dev/null; then
-        log_error "Merge pull also failed on attempt ${attempt}"
-        if [ "$attempt" -ge "$max_retries" ]; then
-          log_error "All sync attempts exhausted"
-          return 1
-        fi
-        sleep 2
-        continue
-      fi
-      log "Merge pull succeeded"
-    fi
-
-    # Try to push
-    if git push "${UPSTREAM_REMOTE}" HEAD:main 2>/dev/null; then
-      log "Push succeeded"
+    if git push "${UPSTREAM_REMOTE}" "${AGENT_BRANCH}:refs/heads/${AGENT_BRANCH}" --force-with-lease 2>/dev/null; then
+      log "Push to ${AGENT_BRANCH} succeeded"
       return 0
     else
-      log "Push failed on attempt ${attempt}, will pull and retry"
+      log "Push failed on attempt ${attempt}"
       sleep 2
     fi
   done
 
-  log_error "Failed to sync after ${max_retries} attempts"
+  # Fallback: force push (agent owns this branch exclusively)
+  if git push "${UPSTREAM_REMOTE}" "${AGENT_BRANCH}:refs/heads/${AGENT_BRANCH}" --force 2>/dev/null; then
+    log "Force push to ${AGENT_BRANCH} succeeded"
+    return 0
+  fi
+
+  log_error "Failed to push after ${max_retries} attempts"
   return 1
 }
 
@@ -182,16 +183,23 @@ run_session() {
   # Also replace lock.py references with full path
   prompt="${prompt//python3 scripts\/lock.py/python3 scripts\/lock.py --locks-dir ${BOARD_DIR}\/locks\/}"
 
-  # Inject board location context at the top
-  local board_context="IMPORTANT: The task board is mounted at ${BOARD_DIR}/.
+  # Inject board + branch + identity context at the top
+  local context="YOUR AGENT_ID is: ${AGENT_ID}
+Use '${AGENT_ID}' (not \$AGENT_ID) in all commands and commit messages.
+
+IMPORTANT: The task board is mounted at ${BOARD_DIR}/.
 All board.py commands MUST include: --tasks-dir ${BOARD_DIR}/tasks/ --messages-dir ${BOARD_DIR}/messages/
 All lock.py commands MUST include: --locks-dir ${BOARD_DIR}/locks/
-Example: python3 scripts/board.py --tasks-dir ${BOARD_DIR}/tasks/ list --status open"
+Example: python3 scripts/board.py --tasks-dir ${BOARD_DIR}/tasks/ list --status open
+
+GIT BRANCH: You are working on branch '${AGENT_BRANCH}'.
+Do NOT push to main. Commit to your current branch. The entrypoint handles pushing.
+Do NOT run git push — the entrypoint will push your branch after the session."
 
   log "Starting Claude session ${SESSION_COUNT} with role ${AGENT_ROLE}"
 
   claude --dangerously-skip-permissions \
-    -p "${board_context}
+    -p "${context}
 
 ${prompt}" \
     --model "$AGENT_MODEL" \
@@ -207,11 +215,11 @@ commit_changes() {
   status=$(git status --porcelain 2>/dev/null)
 
   if [ -z "$status" ]; then
-    log "No changes detected after session ${SESSION_COUNT}"
+    log "No uncommitted changes after session ${SESSION_COUNT}"
     return 1
   fi
 
-  log "Changes detected, committing..."
+  log "Uncommitted changes detected, committing..."
   git add -A
   git commit -m "agent/${AGENT_ID}: session ${SESSION_COUNT}" --no-verify
   log "Committed changes for session ${SESSION_COUNT}"
@@ -237,6 +245,13 @@ main() {
   while true; do
     log "--- Session ${SESSION_COUNT} ---"
 
+    # Rebase agent branch on latest main before each session
+    git fetch "${UPSTREAM_REMOTE}" main 2>/dev/null || true
+    git rebase "${UPSTREAM_REMOTE}/main" 2>/dev/null || {
+      git rebase --abort 2>/dev/null || true
+      log "Rebase on main failed, continuing on current state"
+    }
+
     # Run Claude session
     if ! run_session; then
       log_error "Session ${SESSION_COUNT} failed to start"
@@ -252,15 +267,15 @@ main() {
     # Commit any uncommitted changes (safety net — agent should commit in-session)
     commit_changes || true
 
-    # Check if there are commits to push (agent may have committed during session)
+    # Check if there are commits to push
     local_head=$(git rev-parse HEAD 2>/dev/null)
     remote_head=$(git rev-parse "${UPSTREAM_REMOTE}/main" 2>/dev/null || echo "none")
 
     if [ "$local_head" != "$remote_head" ]; then
       IDLE_COUNT=0
-      log "Unpushed commits detected, syncing..."
-      if ! sync_changes; then
-        log_error "Failed to sync changes for session ${SESSION_COUNT}"
+      log "Unpushed commits on ${AGENT_BRANCH}, pushing..."
+      if ! push_branch; then
+        log_error "Failed to push ${AGENT_BRANCH}"
       fi
     else
       IDLE_COUNT=$((IDLE_COUNT + 1))

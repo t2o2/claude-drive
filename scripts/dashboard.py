@@ -301,6 +301,10 @@ def _render(
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    config = _load_config()
+    upstream = PROJECT_ROOT / config.get("sync", {}).get(
+        "upstream_path", ".drive/upstream"
+    )
     return _render(
         request,
         groups=_get_grouped_tasks(),
@@ -309,8 +313,9 @@ async def index(request: Request):
         agent_cards=_get_agent_cards(),
         messages=_get_all_messages(),
         fleet=_get_fleet_context(),
-        config=_load_config(),
+        config=config,
         config_errors=[],
+        branches=orchestrator.list_agent_branches(upstream),
     )
 
 
@@ -832,6 +837,32 @@ async def agent_restart(agent_id: str):
         )
 
     return JSONResponse({"agent_id": agent_id, "status": result["status"]})
+
+
+# ── Branch management routes ─────────────────────────────
+
+
+@app.get("/partials/branches", response_class=HTMLResponse)
+async def partials_branches(request: Request):
+    """Return branches partial with agent branch list."""
+    config = _load_config()
+    upstream = PROJECT_ROOT / config.get("sync", {}).get(
+        "upstream_path", ".drive/upstream"
+    )
+    branches = orchestrator.list_agent_branches(upstream)
+    return _render(request, "branches", branches=branches)
+
+
+@app.post("/branches/{branch_name:path}/merge", response_class=HTMLResponse)
+async def merge_branch(request: Request, branch_name: str):
+    """Merge an agent branch into main."""
+    config = _load_config()
+    upstream = PROJECT_ROOT / config.get("sync", {}).get(
+        "upstream_path", ".drive/upstream"
+    )
+    result = orchestrator.merge_agent_branch(upstream, branch_name, PROJECT_ROOT)
+    branches = orchestrator.list_agent_branches(upstream)
+    return _render(request, "branches", branches=branches, merge_result=result)
 
 
 # ── CLI args ─────────────────────────────────────────────

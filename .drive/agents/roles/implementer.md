@@ -66,9 +66,11 @@ python3 scripts/lock.py refresh <task_id> "$AGENT_ID"
 
 ### 5. Commit
 
+Use your actual AGENT_ID value (provided at the top of this prompt) in the commit message:
+
 ```bash
 git add -A
-git commit -m "agent/${AGENT_ID}: completed task #<task_id> (<short description>)" --no-verify
+git commit -m "agent/<YOUR_AGENT_ID>: completed task #<task_id> (<short description>)" --no-verify
 ```
 
 ### 6. Mark Done
@@ -78,18 +80,10 @@ python3 scripts/board.py complete <task_id> "$AGENT_ID"
 python3 scripts/lock.py release <task_id> "$AGENT_ID"
 ```
 
-### 7. Sync (end)
+### 7. Exit
 
-```bash
-git pull "$UPSTREAM_REMOTE" main --rebase || (git rebase --abort && git pull "$UPSTREAM_REMOTE" main --no-rebase)
-git push "$UPSTREAM_REMOTE" HEAD:main
-```
-
-If push fails, pull and retry up to 3 times. If still failing, commit is preserved locally for next session.
-
-### 8. Exit
-
-Exit cleanly. The entrypoint loop handles restarting.
+Exit cleanly. Do NOT run `git push` — the entrypoint handles pushing your branch automatically.
+The entrypoint loop handles restarting.
 
 ## Rules
 

@@ -181,6 +181,47 @@
 </div>
 {% endmacro %}
 
+{% macro render_branches(branches, merge_result) %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Agent Branches</h3>
+    {% if branches %}<span class="badge">{{ branches|length }}</span>{% endif %}
+  </div>
+  {% if merge_result %}
+  <div class="merge-result {% if merge_result.success %}merge-success{% else %}merge-error{% endif %}">
+    {{ merge_result.message }}
+    {% if merge_result.conflicts %}
+    <div class="merge-conflicts">Conflicts: {{ merge_result.conflicts | join(", ") }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if branches %}
+  <div class="branch-list">
+    {% for b in branches %}
+    <div class="branch-item">
+      <div class="branch-info">
+        <div class="branch-name">{{ b.branch }}</div>
+        <div class="branch-detail">{{ b.ahead }} commit{{ "s" if b.ahead != 1 }} ahead · <code>{{ b.commit }}</code></div>
+        <div class="branch-subject">{{ b.subject[:60] }}{% if b.subject|length > 60 %}...{% endif %}</div>
+      </div>
+      {% if b.ahead > 0 %}
+      <button class="btn-merge"
+              hx-post="/branches/{{ b.branch }}/merge"
+              hx-target="#branches-section"
+              hx-swap="innerHTML"
+              hx-confirm="Merge {{ b.branch }} into main?">
+        Merge
+      </button>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">No agent branches</div>
+  {% endif %}
+</div>
+{% endmacro %}
+
 {% macro render_config(config, config_errors) %}
 {# Config hidden from main view for cleaner UI #}
 {% endmacro %}
@@ -197,6 +238,8 @@
   {{ render_agents(locks, agent_cards) }}
 {% elif partial == "messages" %}
   {{ render_messages(messages) }}
+{% elif partial == "branches" %}
+  {{ render_branches(branches|default([]), merge_result|default(None)) }}
 {% elif partial == "config" %}
   {{ render_config(config, config_errors) }}
 {% else %}
@@ -811,6 +854,93 @@
       color: #6b7280;
     }
 
+    /* Branches */
+    .branch-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .branch-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      border-left: 3px solid #818cf8;
+    }
+
+    .branch-info { flex: 1; min-width: 0; }
+
+    .branch-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e8eaed;
+      font-family: monospace;
+    }
+
+    .branch-detail {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .branch-detail code {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+
+    .branch-subject {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+
+    .btn-merge {
+      padding: 4px 12px;
+      font-size: 12px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 6px;
+      cursor: pointer;
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+
+    .btn-merge:hover {
+      background: rgba(16, 185, 129, 0.25);
+    }
+
+    .merge-result {
+      padding: 8px 12px;
+      margin: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .merge-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .merge-error {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .merge-conflicts {
+      margin-top: 4px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+
     /* Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
@@ -905,6 +1035,10 @@
 
       <div id="messages-section" hx-get="/partials/messages" hx-trigger="every 5s" hx-swap="innerHTML">
         {{ render_messages(messages) }}
+      </div>
+
+      <div id="branches-section" hx-get="/partials/branches" hx-trigger="every 10s" hx-swap="innerHTML">
+        {{ render_branches(branches|default([]), None) }}
       </div>
     </aside>
   </div>
