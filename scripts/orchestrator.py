@@ -84,6 +84,7 @@ def start_agent(
     credentials_path: Path | None = None,
     api_key: str | None = None,
     provider_env: dict[str, str] | None = None,
+    project_root: Path | None = None,
 ) -> dict:
     """Start a Docker container for an agent. Returns {container_id, status}."""
     validate_role_name(role)
@@ -102,6 +103,17 @@ def start_agent(
         "--rm",
         "-v",
         f"{upstream_path}:/upstream",
+    ]
+
+    # Mount shared agent directories at /board/ so agents see the host's task board
+    if project_root:
+        agent_dir = project_root / ".drive" / "agents"
+        for subdir in ("tasks", "locks", "messages", "logs"):
+            host_path = agent_dir / subdir
+            host_path.mkdir(parents=True, exist_ok=True)
+            cmd.extend(["-v", f"{host_path}:/board/{subdir}"])
+
+    cmd += [
         "-e",
         f"AGENT_ROLE={role}",
         "-e",

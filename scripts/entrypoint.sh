@@ -16,7 +16,7 @@ log_error() {
 on_exit() {
   local exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
-    local crash_log=".drive/agents/logs/${AGENT_ID}-crash.log"
+    local crash_log="${BOARD_DIR:-/board}/logs/${AGENT_ID}-crash.log"
     mkdir -p "$(dirname "$crash_log")"
     {
       echo "---"
@@ -61,9 +61,18 @@ validate_env() {
   UPSTREAM_REMOTE="${UPSTREAM_REMOTE:-/upstream}"
   MAX_SESSIONS="${MAX_SESSIONS:-20}"
 
+  # Use /board/ mount if available, otherwise fall back to workspace-local dirs
+  if [ -d "/board/tasks" ]; then
+    BOARD_DIR="/board"
+  else
+    BOARD_DIR=".drive/agents"
+  fi
+  export BOARD_DIR
+
   log "Agent ${AGENT_ID} starting with role=${AGENT_ROLE} model=${AGENT_MODEL}"
   log "Upstream remote: ${UPSTREAM_REMOTE}"
   log "Max sessions: ${MAX_SESSIONS}"
+  log "Board dir: ${BOARD_DIR}"
 }
 
 # --- Step 2: Clone from upstream ---
@@ -168,10 +177,19 @@ run_session() {
   local prompt
   prompt=$(cat "$role_file")
 
+  # Inject board location into prompt so the agent knows where to find tasks
+  local board_context="BOARD_DIR=${BOARD_DIR}
+Tasks directory: ${BOARD_DIR}/tasks/
+Locks directory: ${BOARD_DIR}/locks/
+Messages directory: ${BOARD_DIR}/messages/
+Use 'python3 scripts/board.py' with --tasks-dir ${BOARD_DIR}/tasks/ to interact with the task board."
+
   log "Starting Claude session ${SESSION_COUNT} with role ${AGENT_ROLE}"
 
   claude --dangerously-skip-permissions \
-    -p "$prompt" \
+    -p "${board_context}
+
+${prompt}" \
     --model "$AGENT_MODEL" \
     2>&1 | tee -a "$LOG_FILE"
 
@@ -207,7 +225,7 @@ main() {
   SESSION_COUNT=0
   IDLE_COUNT=0
   MAX_IDLE=5
-  LOG_FILE=".drive/agents/logs/${AGENT_ID}.log"
+  LOG_FILE="${BOARD_DIR}/logs/${AGENT_ID}.log"
   mkdir -p "$(dirname "$LOG_FILE")"
 
   log "Entering Ralph-loop (max_sessions=${MAX_SESSIONS}, max_idle=${MAX_IDLE})"

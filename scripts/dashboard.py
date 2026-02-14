@@ -765,6 +765,7 @@ async def fleet_start():
                     credentials_path=credentials_path,
                     api_key=api_key,
                     provider_env=provider_env,
+                    project_root=PROJECT_ROOT,
                 )
                 _fleet_state[agent_id] = {
                     "status": result["status"],
