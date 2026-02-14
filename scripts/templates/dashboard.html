@@ -1,46 +1,60 @@
 {# ── Macros ─────────────────────────────────────────── #}
 
 {% macro render_stats(stats) %}
-<section id="stats" hx-get="/partials/stats" hx-trigger="every 5s" hx-swap="outerHTML">
-  <div class="stats-grid">
-    <div class="stat-card">
-      <span class="stat-label">Open</span>
-      <span class="stat-value">{{ stats.open }}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">In Progress</span>
-      <span class="stat-value">{{ stats.locked }}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Done</span>
-      <span class="stat-value">{{ stats.done }}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Failed</span>
-      <span class="stat-value">{{ stats.failed }}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Completion</span>
-      <span class="stat-value">{{ stats.completion }}%</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Active Agents</span>
-      <span class="stat-value">{{ stats.active_agents }}</span>
-    </div>
+<div class="stats-compact">
+  <div class="stat-row">
+    <span class="stat-row-label">Open</span>
+    <span class="stat-row-value">{{ stats.open }}</span>
   </div>
-</section>
+  <div class="stat-row">
+    <span class="stat-row-label">In Progress</span>
+    <span class="stat-row-value">{{ stats.locked }}</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-row-label">Done</span>
+    <span class="stat-row-value">{{ stats.done }}</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-row-label">Failed</span>
+    <span class="stat-row-value">{{ stats.failed }}</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-row-label">Completion</span>
+    <span class="stat-row-value">{{ stats.completion }}%</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-row-label">Active Agents</span>
+    <span class="stat-row-value">{{ stats.active_agents }}</span>
+  </div>
+</div>
 {% endmacro %}
 
 {% macro render_board(groups) %}
-<section id="board" hx-get="/partials/board" hx-trigger="every 3s" hx-swap="outerHTML">
+<section id="board" class="section-card" hx-get="/partials/board" hx-trigger="every 3s" hx-swap="outerHTML">
+  <div class="section-header">
+    <h2 class="section-title">
+      Task Board
+      <span class="section-count">{{ groups.open|length + groups.locked|length + groups.done|length + groups.failed|length }}</span>
+    </h2>
+    <button class="action-btn"
+            hx-post="/tasks/archive"
+            hx-target="#board"
+            hx-swap="outerHTML"
+            hx-confirm="Archive done tasks older than 7 days?">
+      Archive Old
+    </button>
+  </div>
   <div class="kanban">
     {% for status, label, color in [("open", "Open", "#4caf50"), ("locked", "In Progress", "#ff9800"), ("done", "Done", "#2196f3"), ("failed", "Failed", "#f44336")] %}
     <div class="kanban-column">
-      <h4 class="column-header" style="border-left: 4px solid {{ color }}; padding-left: 0.5rem;">
-        {{ label }} <small>({{ groups[status]|length }})</small>
-      </h4>
+      <div class="column-header">
+        <div class="column-indicator" style="background: {{ color }};"></div>
+        {{ label }}
+        <span class="column-count">{{ groups[status]|length }}</span>
+      </div>
+      {% if groups[status] %}
       {% for task in groups[status] %}
-      <article class="task-card" style="border-left: 4px solid {{ color }};">
+      <article class="task-card" style="border-left-color: {{ color }};">
         <div class="task-priority">P{{ task.priority }}</div>
         <p class="task-desc">{{ task.description }}</p>
         {% if task.locked_by %}
@@ -62,54 +76,53 @@
                   hx-post="/tasks/{{ task.id }}/delete"
                   hx-target="#board"
                   hx-swap="outerHTML"
-                  hx-confirm="Delete task '{{ task.description }}'?">Del</button>
+                  hx-confirm="Delete?">Del</button>
           {% endif %}
         </div>
       </article>
-      {% else %}
-      <p class="empty-col">No tasks</p>
       {% endfor %}
+      {% else %}
+      <div class="empty-state">No tasks</div>
+      {% endif %}
     </div>
     {% endfor %}
-  </div>
-  <div style="text-align: right; margin-top: 0.5rem;">
-    <button class="btn-small"
-            hx-post="/tasks/archive"
-            hx-target="#board"
-            hx-swap="outerHTML"
-            hx-confirm="Archive done tasks older than 7 days?">Archive Old</button>
   </div>
 </section>
 {% endmacro %}
 
 {% macro render_agents(locks, agent_cards) %}
-<section id="agents" hx-get="/partials/agents" hx-trigger="every 5s" hx-swap="outerHTML">
-  <div style="display: flex; justify-content: space-between; align-items: center;">
-    <h4>Agents</h4>
-    <button class="btn-small"
+<section id="agents" class="section-card" hx-get="/partials/agents" hx-trigger="every 5s" hx-swap="outerHTML">
+  <div class="section-header">
+    <h2 class="section-title">
+      Agents
+      <span class="section-count">{{ agent_cards|length if agent_cards else (locks|length if locks else 0) }}</span>
+    </h2>
+    <button class="action-btn"
             hx-post="/locks/cleanup"
             hx-target="#agents"
-            hx-swap="outerHTML">Cleanup Stale</button>
+            hx-swap="outerHTML">
+      Cleanup Stale
+    </button>
   </div>
   {% if agent_cards %}
   <div class="agent-grid">
     {% for card in agent_cards %}
     <article class="agent-card">
       <div class="agent-card-header">
-        <strong>{{ card.agent_id }}</strong>
+        <span class="agent-id">{{ card.agent_id }}</span>
         <span class="badge-role">{{ card.role }}</span>
       </div>
       {% if card.task_id %}
       <div class="agent-task">Task: <code>{{ card.task_id[:8] }}</code></div>
       {% endif %}
       <div class="agent-meta">
-        <span>Status:
+        <span>
           {% if card.status == "running" %}
-          <span class="badge-fresh">running</span>
+          <span class="badge-fresh">● running</span>
           {% elif card.orphaned_lock %}
-          <span class="badge-stale">orphaned lock</span>
+          <span class="badge-stale">● orphaned</span>
           {% else %}
-          <span class="badge-stale">{{ card.status }}</span>
+          <span class="badge-stale">● {{ card.status }}</span>
           {% endif %}
         </span>
         <span>Uptime: {{ card.uptime }}</span>
@@ -121,113 +134,105 @@
                 hx-post="/agents/{{ card.agent_id }}/stop"
                 hx-target="#agents"
                 hx-swap="outerHTML"
-                hx-confirm="Stop agent {{ card.agent_id }}?"
-                hx-disabled-elt="this"
-                hx-disable-elt="this">Stop</button>
+                hx-confirm="Stop {{ card.agent_id }}?"
+                hx-disabled-elt="this">Stop</button>
         <button class="btn-small btn-reopen"
                 hx-post="/agents/{{ card.agent_id }}/restart"
                 hx-target="#agents"
                 hx-swap="outerHTML"
-                hx-confirm="Restart agent {{ card.agent_id }}?"
-                hx-disabled-elt="this"
-                hx-disable-elt="this">Restart</button>
+                hx-confirm="Restart {{ card.agent_id }}?"
+                hx-disabled-elt="this">Restart</button>
       </div>
       {% endif %}
     </article>
     {% endfor %}
   </div>
   {% elif locks %}
-  <p class="empty-col">No fleet containers — showing lock data only</p>
-  <figure>
-    <table>
-      <thead>
-        <tr><th>Agent</th><th>Task</th><th>Heartbeat</th><th>Status</th></tr>
-      </thead>
-      <tbody>
-        {% for lk in locks %}
-        <tr>
-          <td>{{ lk.agent_id }}</td>
-          <td><code>{{ lk.task_id }}</code></td>
-          <td>{{ lk.heartbeat_ago }}</td>
-          <td>{% if lk.fresh %}<span class="badge-fresh">Fresh</span>{% else %}<span class="badge-stale">Stale</span>{% endif %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </figure>
+  <div class="empty-state">No fleet containers — lock data only</div>
   {% else %}
-  <p class="empty-col">No active agents</p>
+  <div class="empty-state">No active agents</div>
   {% endif %}
 </section>
 {% endmacro %}
 
 {% macro render_messages(messages) %}
-<section id="messages" hx-get="/partials/messages" hx-trigger="every 5s" hx-swap="outerHTML">
-  <h4>Messages</h4>
+<section id="messages" class="section-card" hx-get="/partials/messages" hx-trigger="every 5s" hx-swap="outerHTML">
+  <div class="section-header">
+    <h2 class="section-title">
+      Messages
+      <span class="section-count">{{ messages|length if messages else 0 }}</span>
+    </h2>
+  </div>
   {% if messages %}
   <div class="message-list">
     {% for msg in messages %}
     <div class="message-item">
-      <span class="msg-route">{{ msg["from"] }} &rarr; {{ msg.to }}</span>
-      <span class="msg-time">{{ msg.timestamp | timeago }}</span>
+      <div class="msg-header">
+        <span class="msg-route">{{ msg["from"] }} → {{ msg.to }}</span>
+        <span class="msg-time">{{ msg.timestamp | timeago }}</span>
+      </div>
       <p class="msg-text">{{ msg.text }}</p>
     </div>
     {% endfor %}
   </div>
   {% else %}
-  <p class="empty-col">No messages</p>
+  <div class="empty-state">No messages</div>
   {% endif %}
 </section>
 {% endmacro %}
 
 {% macro render_fleet(fleet) %}
-<section id="fleet" hx-get="/partials/fleet" hx-trigger="every 3s" hx-swap="outerHTML">
-  {% if fleet.runtime == "devpod" %}
-  <div class="fleet-banner fleet-devpod">
-    <strong>DevPod runtime detected.</strong> Use <code>scripts/run-agents.sh</code> for fleet management.
-  </div>
-  {% else %}
-  <div class="fleet-controls">
-    <div class="fleet-status">
-      {% if fleet.fleet_status == "running" %}
-      <span class="fleet-indicator fleet-running"></span> <strong>Running</strong> ({{ fleet.fleet_count }} agents)
-      {% else %}
-      <span class="fleet-indicator fleet-stopped"></span> <strong>Stopped</strong>
-      {% endif %}
-    </div>
-    <div class="fleet-buttons">
-      {% if fleet.fleet_status != "running" %}
-      <button class="btn-fleet btn-start"
-              hx-post="/fleet/start"
-              hx-target="#fleet"
-              hx-swap="outerHTML"
-              hx-confirm="Start the agent fleet?"
-              {% if fleet.open_tasks == 0 %}disabled{% endif %}>Start Fleet</button>
-      {% endif %}
-      {% if fleet.fleet_status == "running" %}
-      <button class="btn-fleet btn-stop"
-              hx-post="/fleet/stop"
-              hx-target="#fleet"
-              hx-swap="outerHTML"
-              hx-confirm="Stop all agents?">Stop Fleet</button>
-      {% endif %}
-    </div>
+{% if fleet.runtime == "devpod" %}
+<div class="fleet-devpod">
+  <strong>DevPod mode</strong><br>
+  <small>Use <code>scripts/run-agents.sh</code></small>
+</div>
+{% else %}
+<div class="sidebar-fleet">
+  <div class="fleet-status-compact">
+    {% if fleet.fleet_status == "running" %}
+    <span class="fleet-indicator fleet-running"></span>
+    Running ({{ fleet.fleet_count }})
+    {% else %}
+    <span class="fleet-indicator fleet-stopped"></span>
+    Stopped
+    {% endif %}
   </div>
   {% if fleet.open_tasks == 0 and fleet.fleet_status != "running" %}
-  <div class="fleet-warning">
-    No open tasks on the board. Add tasks before starting the fleet.
+  <div class="fleet-warning" style="margin-top: 0.5rem; padding: 0.5rem; font-size: 0.75rem;">
+    No open tasks
   </div>
   {% endif %}
+  {% if fleet.fleet_status != "running" %}
+  <button class="fleet-btn-compact btn-start"
+          hx-post="/fleet/start"
+          hx-target="#sidebar-fleet"
+          hx-swap="innerHTML"
+          hx-confirm="Start the agent fleet?"
+          {% if fleet.open_tasks == 0 %}disabled{% endif %}>
+    Start Fleet
+  </button>
   {% endif %}
-</section>
+  {% if fleet.fleet_status == "running" %}
+  <button class="fleet-btn-compact btn-stop"
+          hx-post="/fleet/stop"
+          hx-target="#sidebar-fleet"
+          hx-swap="innerHTML"
+          hx-confirm="Stop all agents?">
+    Stop Fleet
+  </button>
+  {% endif %}
+</div>
+{% endif %}
 {% endmacro %}
 
 {% macro render_config(config, config_errors) %}
-<section id="config" hx-get="/partials/config" hx-trigger="every 10s" hx-swap="outerHTML">
-  <h4>Configuration</h4>
+<section id="config" class="config-section" hx-get="/partials/config" hx-trigger="every 10s" hx-swap="outerHTML">
+  <div class="section-header">
+    <h2 class="section-title">Configuration</h2>
+  </div>
   <form hx-post="/config" hx-target="#config" hx-swap="outerHTML">
-    <textarea name="config_json" rows="20"
-              style="font-family: monospace; font-size: 0.8rem;">{{ config | tojson(indent=2) }}</textarea>
+    <textarea name="config_json" rows="16">{{ config | tojson(indent=2) }}</textarea>
     {% if config_errors %}
     <div class="config-errors">
       {% for err in config_errors %}
@@ -235,7 +240,7 @@
       {% endfor %}
     </div>
     {% endif %}
-    <button type="submit" class="btn-small">Save Config</button>
+    <button type="submit" class="action-btn" style="margin-top: 0.5rem;">Save Config</button>
   </form>
 </section>
 {% endmacro %}
@@ -265,85 +270,242 @@
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <style>
     :root {
+      --sidebar-width: 280px;
       --card-bg: #1a1a2e;
       --card-border: #333;
+      --hover-bg: #252541;
     }
-    body { padding: 1rem 2rem; }
-    h1 { margin-bottom: 0.5rem; }
 
-    .stats-grid {
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 0.75rem;
-      margin-bottom: 1.5rem;
+      grid-template-columns: var(--sidebar-width) 1fr;
+      height: 100vh;
+      overflow: hidden;
+      padding: 0;
+      margin: 0;
     }
-    .stat-card {
+
+    /* Sidebar */
+    .sidebar {
       background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 0.75rem;
-      text-align: center;
+      border-right: 1px solid var(--card-border);
+      padding: 1.5rem 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
     }
-    .stat-label {
-      display: block;
-      font-size: 0.75rem;
+    .sidebar h1 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    /* Compact stats in sidebar */
+    .stats-compact {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .stat-row-label {
       opacity: 0.7;
+      font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .stat-value {
-      display: block;
-      font-size: 1.5rem;
+    .stat-row-value {
       font-weight: bold;
-      margin-top: 0.25rem;
+      font-size: 1rem;
     }
 
-    .add-form {
-      display: flex;
-      gap: 0.5rem;
-      align-items: flex-end;
-      margin-bottom: 1.5rem;
+    /* Fleet controls in sidebar */
+    .sidebar-fleet {
+      padding: 0.75rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
     }
-    .add-form input[type="text"] { flex: 1; margin-bottom: 0; }
-    .add-form select { width: 80px; margin-bottom: 0; }
+    .fleet-status-compact {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: bold;
+    }
+    .fleet-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .fleet-running { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+    .fleet-stopped { background: #666; }
+    .fleet-btn-compact {
+      width: 100%;
+      padding: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+    .fleet-btn-compact:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-start { color: #4caf50; border-color: #4caf50; }
+    .btn-start:hover:not(:disabled) { background: #4caf50; color: #fff; }
+    .btn-stop { color: #f44336; border-color: #f44336; }
+    .btn-stop:hover { background: #f44336; color: #fff; }
+
+    /* Main content area */
+    .main-content {
+      overflow-y: auto;
+      padding: 1.5rem;
+      background: #16161e;
+    }
+
+    /* Main grid layout - 2 columns */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 1.5rem;
+      height: calc(100vh - 3rem);
+    }
+
+    .primary-column {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      overflow-y: auto;
+    }
+
+    .secondary-column {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      overflow-y: auto;
+    }
+
+    /* Section cards */
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .section-title {
+      font-size: 1rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section-count {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: normal;
+    }
+
+    /* Add task form - horizontal compact */
+    .add-form {
+      display: grid;
+      grid-template-columns: 1fr 80px auto;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .add-form input[type="text"] { margin-bottom: 0; }
+    .add-form select { margin-bottom: 0; }
     .add-form button { margin-bottom: 0; white-space: nowrap; }
 
+    /* Kanban board - 2x2 grid for better density */
     .kanban {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 1rem;
-      margin-bottom: 1rem;
     }
-    .kanban-column { min-height: 200px; }
-    .column-header { margin-bottom: 0.75rem; }
-    .column-header small { opacity: 0.6; }
+    .kanban-column {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 6px;
+      padding: 0.75rem;
+      min-height: 150px;
+    }
+    .column-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: bold;
+    }
+    .column-indicator {
+      width: 3px;
+      height: 16px;
+      border-radius: 2px;
+    }
+    .column-count {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-weight: normal;
+    }
 
     .task-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 6px;
-      padding: 0.75rem;
+      padding: 0.6rem;
       margin-bottom: 0.5rem;
+      border-left: 3px solid;
     }
+    .task-card:hover { background: var(--hover-bg); }
     .task-priority {
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       font-weight: bold;
-      opacity: 0.7;
+      opacity: 0.6;
       text-transform: uppercase;
     }
     .task-desc {
       margin: 0.25rem 0;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       word-break: break-word;
+      line-height: 1.4;
     }
-    .task-agent { display: block; color: #ff9800; font-size: 0.8rem; }
-    .task-reason { display: block; color: #f44336; font-size: 0.8rem; font-style: italic; }
-    .task-time { display: block; opacity: 0.5; font-size: 0.75rem; }
-    .task-actions { margin-top: 0.5rem; display: flex; gap: 0.25rem; }
+    .task-agent { display: block; color: #ff9800; font-size: 0.75rem; margin-top: 0.25rem; }
+    .task-reason { display: block; color: #f44336; font-size: 0.75rem; font-style: italic; margin-top: 0.25rem; }
+    .task-time { display: block; opacity: 0.4; font-size: 0.7rem; margin-top: 0.25rem; }
+    .task-actions {
+      margin-top: 0.5rem;
+      display: flex;
+      gap: 0.25rem;
+    }
 
     .btn-small {
-      font-size: 0.75rem;
-      padding: 0.25rem 0.5rem;
+      font-size: 0.7rem;
+      padding: 0.25rem 0.4rem;
       border-radius: 4px;
       border: 1px solid var(--card-border);
       background: transparent;
@@ -356,144 +518,438 @@
     .btn-reopen { color: #4caf50; border-color: #4caf50; }
     .btn-reopen:hover { background: #4caf50; color: #fff; }
 
-    .empty-col { opacity: 0.4; font-size: 0.85rem; font-style: italic; }
+    .empty-state {
+      opacity: 0.3;
+      font-size: 0.8rem;
+      font-style: italic;
+      text-align: center;
+      padding: 1.5rem 1rem;
+    }
 
-    .badge-fresh { color: #4caf50; font-weight: bold; font-size: 0.8rem; }
-    .badge-stale { color: #f44336; font-weight: bold; font-size: 0.8rem; }
-
-    .message-list { max-height: 300px; overflow-y: auto; }
-    .message-item { border-bottom: 1px solid var(--card-border); padding: 0.5rem 0; }
-    .message-item:last-child { border-bottom: none; }
-    .msg-route { font-weight: bold; font-size: 0.85rem; }
-    .msg-time { float: right; opacity: 0.5; font-size: 0.75rem; }
-    .msg-text { margin: 0.25rem 0 0; font-size: 0.85rem; opacity: 0.85; }
-
+    /* Agent cards - compact 2 column */
     .agent-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 0.75rem;
     }
     .agent-card {
-      background: var(--card-bg);
+      background: rgba(255, 255, 255, 0.02);
       border: 1px solid var(--card-border);
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 0.75rem;
     }
+    .agent-card:hover { background: var(--hover-bg); }
     .agent-card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.5rem;
     }
+    .agent-id { font-size: 0.85rem; font-weight: bold; }
     .badge-role {
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       background: #333;
-      padding: 0.15rem 0.5rem;
-      border-radius: 4px;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .agent-task { font-size: 0.85rem; margin-bottom: 0.4rem; }
+    .agent-task { font-size: 0.8rem; margin-bottom: 0.4rem; color: #888; }
     .agent-meta {
       display: flex;
       flex-direction: column;
-      gap: 0.15rem;
-      font-size: 0.8rem;
-      opacity: 0.8;
+      gap: 0.2rem;
+      font-size: 0.75rem;
+      opacity: 0.7;
       margin-bottom: 0.5rem;
     }
     .agent-actions { display: flex; gap: 0.25rem; }
 
-    .config-errors { margin-top: 0.5rem; }
-    .error-text { color: #f44336; font-size: 0.85rem; margin: 0.2rem 0; }
+    .badge-fresh { color: #4caf50; font-weight: bold; font-size: 0.75rem; }
+    .badge-stale { color: #f44336; font-weight: bold; font-size: 0.75rem; }
 
-    .fleet-controls {
+    /* Messages - compact list */
+    .message-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .message-item {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 0.6rem 0;
+    }
+    .message-item:last-child { border-bottom: none; }
+    .msg-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.75rem 1rem;
+      margin-bottom: 0.25rem;
+    }
+    .msg-route { font-weight: bold; font-size: 0.8rem; }
+    .msg-time { opacity: 0.4; font-size: 0.7rem; }
+    .msg-text {
+      font-size: 0.8rem;
+      opacity: 0.8;
+      line-height: 1.4;
+    }
+
+    /* Config section */
+    .config-section {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 8px;
-      margin-bottom: 1rem;
+      padding: 1rem;
     }
-    .fleet-status { display: flex; align-items: center; gap: 0.5rem; }
-    .fleet-indicator {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
+    .config-section textarea {
+      font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+      font-size: 0.75rem;
+      background: #0d0d0d;
+      border: 1px solid var(--card-border);
+      border-radius: 4px;
+      padding: 0.75rem;
+      width: 100%;
     }
-    .fleet-running { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
-    .fleet-stopped { background: #666; }
-    .fleet-buttons { display: flex; gap: 0.5rem; }
-    .btn-fleet {
-      font-size: 0.85rem;
-      padding: 0.4rem 1rem;
-      border-radius: 6px;
+    .config-errors { margin-top: 0.5rem; }
+    .error-text { color: #f44336; font-size: 0.8rem; margin: 0.2rem 0; }
+
+    /* Utilities */
+    .action-btn {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
       border: 1px solid var(--card-border);
       background: transparent;
       color: inherit;
       cursor: pointer;
-      font-weight: bold;
     }
-    .btn-fleet:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-start { color: #4caf50; border-color: #4caf50; }
-    .btn-start:hover:not(:disabled) { background: #4caf50; color: #fff; }
-    .btn-stop { color: #f44336; border-color: #f44336; }
-    .btn-stop:hover { background: #f44336; color: #fff; }
+    .action-btn:hover { background: var(--hover-bg); }
+
+    /* Fleet warnings */
     .fleet-warning {
       background: #332b00;
       border: 1px solid #ff9800;
       border-radius: 6px;
-      padding: 0.75rem 1rem;
+      padding: 0.6rem 0.75rem;
       color: #ff9800;
-      font-size: 0.85rem;
-      margin-bottom: 1rem;
+      font-size: 0.8rem;
     }
     .fleet-devpod {
-      background: var(--card-bg);
+      background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
+      border-radius: 6px;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 1400px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+      .secondary-column {
+        grid-template-columns: repeat(2, 1fr);
+        display: grid;
+      }
     }
 
     @media (max-width: 900px) {
-      .stats-grid { grid-template-columns: repeat(3, 1fr); }
-      .kanban { grid-template-columns: repeat(2, 1fr); }
+      body {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        display: none;
+      }
+      .kanban {
+        grid-template-columns: 1fr;
+      }
+      .agent-grid {
+        grid-template-columns: 1fr;
+      }
     }
-    @media (max-width: 600px) {
-      .stats-grid { grid-template-columns: repeat(2, 1fr); }
-      .kanban { grid-template-columns: 1fr; }
-      .add-form { flex-direction: column; }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
     }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Agent Dashboard</h1>
-  </header>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h1>🤖 Agent Drive</h1>
 
-  <main>
-    {{ render_stats(stats) }}
-    {{ render_fleet(fleet) }}
+    <!-- Compact Stats -->
+    <div id="sidebar-stats" hx-get="/partials/stats" hx-trigger="every 5s" hx-swap="innerHTML">
+      <div class="stats-compact">
+        <div class="stat-row">
+          <span class="stat-row-label">Open</span>
+          <span class="stat-row-value">{{ stats.open }}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-row-label">In Progress</span>
+          <span class="stat-row-value">{{ stats.locked }}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-row-label">Done</span>
+          <span class="stat-row-value">{{ stats.done }}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-row-label">Failed</span>
+          <span class="stat-row-value">{{ stats.failed }}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-row-label">Completion</span>
+          <span class="stat-row-value">{{ stats.completion }}%</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-row-label">Active Agents</span>
+          <span class="stat-row-value">{{ stats.active_agents }}</span>
+        </div>
+      </div>
+    </div>
 
-    <form class="add-form" hx-post="/tasks" hx-target="#board" hx-swap="outerHTML">
-      <input type="text" name="description" placeholder="New task description..." required>
-      <select name="priority">
-        <option value="3">P3</option>
-        <option value="2">P2</option>
-        <option value="1" selected>P1</option>
-      </select>
-      <button type="submit">Add Task</button>
-    </form>
+    <!-- Fleet Controls in Sidebar -->
+    <div id="sidebar-fleet" hx-get="/partials/fleet" hx-trigger="every 3s" hx-swap="innerHTML">
+      {% if fleet.runtime == "devpod" %}
+      <div class="fleet-devpod">
+        <strong>DevPod mode</strong><br>
+        <small>Use <code>scripts/run-agents.sh</code></small>
+      </div>
+      {% else %}
+      <div class="sidebar-fleet">
+        <div class="fleet-status-compact">
+          {% if fleet.fleet_status == "running" %}
+          <span class="fleet-indicator fleet-running"></span>
+          Running ({{ fleet.fleet_count }})
+          {% else %}
+          <span class="fleet-indicator fleet-stopped"></span>
+          Stopped
+          {% endif %}
+        </div>
+        {% if fleet.open_tasks == 0 and fleet.fleet_status != "running" %}
+        <div class="fleet-warning" style="margin-top: 0.5rem; padding: 0.5rem; font-size: 0.75rem;">
+          No open tasks
+        </div>
+        {% endif %}
+        {% if fleet.fleet_status != "running" %}
+        <button class="fleet-btn-compact btn-start"
+                hx-post="/fleet/start"
+                hx-target="#sidebar-fleet"
+                hx-swap="innerHTML"
+                hx-confirm="Start the agent fleet?"
+                {% if fleet.open_tasks == 0 %}disabled{% endif %}>
+          Start Fleet
+        </button>
+        {% endif %}
+        {% if fleet.fleet_status == "running" %}
+        <button class="fleet-btn-compact btn-stop"
+                hx-post="/fleet/stop"
+                hx-target="#sidebar-fleet"
+                hx-swap="innerHTML"
+                hx-confirm="Stop all agents?">
+          Stop Fleet
+        </button>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </aside>
 
-    {{ render_board(groups) }}
-    {{ render_agents(locks, agent_cards) }}
-    {{ render_messages(messages) }}
-    {{ render_config(config, config_errors) }}
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="dashboard-grid">
+      <!-- Primary Column: Tasks -->
+      <div class="primary-column">
+        <!-- Add Task -->
+        <section class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">Add Task</h2>
+          </div>
+          <form class="add-form" hx-post="/tasks" hx-target="#board" hx-swap="outerHTML">
+            <input type="text" name="description" placeholder="Task description..." required>
+            <select name="priority">
+              <option value="3">P3</option>
+              <option value="2">P2</option>
+              <option value="1" selected>P1</option>
+            </select>
+            <button type="submit">Add</button>
+          </form>
+        </section>
+
+        <!-- Task Board -->
+        <section id="board" class="section-card" hx-get="/partials/board" hx-trigger="every 3s" hx-swap="outerHTML">
+          <div class="section-header">
+            <h2 class="section-title">
+              Task Board
+              <span class="section-count">{{ groups.open|length + groups.locked|length + groups.done|length + groups.failed|length }}</span>
+            </h2>
+            <button class="action-btn"
+                    hx-post="/tasks/archive"
+                    hx-target="#board"
+                    hx-swap="outerHTML"
+                    hx-confirm="Archive done tasks older than 7 days?">
+              Archive Old
+            </button>
+          </div>
+          <div class="kanban">
+            {% for status, label, color in [("open", "Open", "#4caf50"), ("locked", "In Progress", "#ff9800"), ("done", "Done", "#2196f3"), ("failed", "Failed", "#f44336")] %}
+            <div class="kanban-column">
+              <div class="column-header">
+                <div class="column-indicator" style="background: {{ color }};"></div>
+                {{ label }}
+                <span class="column-count">{{ groups[status]|length }}</span>
+              </div>
+              {% if groups[status] %}
+              {% for task in groups[status] %}
+              <article class="task-card" style="border-left-color: {{ color }};">
+                <div class="task-priority">P{{ task.priority }}</div>
+                <p class="task-desc">{{ task.description }}</p>
+                {% if task.locked_by %}
+                <small class="task-agent">{{ task.locked_by }}</small>
+                {% endif %}
+                {% if task.reason %}
+                <small class="task-reason">{{ task.reason }}</small>
+                {% endif %}
+                <small class="task-time">{{ task.created_at | timeago }}</small>
+                <div class="task-actions">
+                  {% if status in ("done", "failed") %}
+                  <button class="btn-small btn-reopen"
+                          hx-post="/tasks/{{ task.id }}/reopen"
+                          hx-target="#board"
+                          hx-swap="outerHTML">Reopen</button>
+                  {% endif %}
+                  {% if status != "locked" %}
+                  <button class="btn-small btn-delete"
+                          hx-post="/tasks/{{ task.id }}/delete"
+                          hx-target="#board"
+                          hx-swap="outerHTML"
+                          hx-confirm="Delete?">Del</button>
+                  {% endif %}
+                </div>
+              </article>
+              {% endfor %}
+              {% else %}
+              <div class="empty-state">No tasks</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <!-- Agents -->
+        <section id="agents" class="section-card" hx-get="/partials/agents" hx-trigger="every 5s" hx-swap="outerHTML">
+          <div class="section-header">
+            <h2 class="section-title">
+              Agents
+              <span class="section-count">{{ agent_cards|length if agent_cards else (locks|length if locks else 0) }}</span>
+            </h2>
+            <button class="action-btn"
+                    hx-post="/locks/cleanup"
+                    hx-target="#agents"
+                    hx-swap="outerHTML">
+              Cleanup Stale
+            </button>
+          </div>
+          {% if agent_cards %}
+          <div class="agent-grid">
+            {% for card in agent_cards %}
+            <article class="agent-card">
+              <div class="agent-card-header">
+                <span class="agent-id">{{ card.agent_id }}</span>
+                <span class="badge-role">{{ card.role }}</span>
+              </div>
+              {% if card.task_id %}
+              <div class="agent-task">Task: <code>{{ card.task_id[:8] }}</code></div>
+              {% endif %}
+              <div class="agent-meta">
+                <span>
+                  {% if card.status == "running" %}
+                  <span class="badge-fresh">● running</span>
+                  {% elif card.orphaned_lock %}
+                  <span class="badge-stale">● orphaned</span>
+                  {% else %}
+                  <span class="badge-stale">● {{ card.status }}</span>
+                  {% endif %}
+                </span>
+                <span>Uptime: {{ card.uptime }}</span>
+                <span>Heartbeat: {{ card.heartbeat_ago }}</span>
+              </div>
+              {% if card.container_id %}
+              <div class="agent-actions">
+                <button class="btn-small btn-delete"
+                        hx-post="/agents/{{ card.agent_id }}/stop"
+                        hx-target="#agents"
+                        hx-swap="outerHTML"
+                        hx-confirm="Stop {{ card.agent_id }}?"
+                        hx-disabled-elt="this">Stop</button>
+                <button class="btn-small btn-reopen"
+                        hx-post="/agents/{{ card.agent_id }}/restart"
+                        hx-target="#agents"
+                        hx-swap="outerHTML"
+                        hx-confirm="Restart {{ card.agent_id }}?"
+                        hx-disabled-elt="this">Restart</button>
+              </div>
+              {% endif %}
+            </article>
+            {% endfor %}
+          </div>
+          {% elif locks %}
+          <div class="empty-state">No fleet containers — lock data only</div>
+          {% else %}
+          <div class="empty-state">No active agents</div>
+          {% endif %}
+        </section>
+      </div>
+
+      <!-- Secondary Column: Messages & Config -->
+      <div class="secondary-column">
+        <!-- Messages -->
+        <section id="messages" class="section-card" hx-get="/partials/messages" hx-trigger="every 5s" hx-swap="outerHTML">
+          <div class="section-header">
+            <h2 class="section-title">
+              Messages
+              <span class="section-count">{{ messages|length if messages else 0 }}</span>
+            </h2>
+          </div>
+          {% if messages %}
+          <div class="message-list">
+            {% for msg in messages %}
+            <div class="message-item">
+              <div class="msg-header">
+                <span class="msg-route">{{ msg["from"] }} → {{ msg.to }}</span>
+                <span class="msg-time">{{ msg.timestamp | timeago }}</span>
+              </div>
+              <p class="msg-text">{{ msg.text }}</p>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty-state">No messages</div>
+          {% endif %}
+        </section>
+
+        <!-- Config -->
+        <section id="config" class="config-section" hx-get="/partials/config" hx-trigger="every 10s" hx-swap="outerHTML">
+          <div class="section-header">
+            <h2 class="section-title">Configuration</h2>
+          </div>
+          <form hx-post="/config" hx-target="#config" hx-swap="outerHTML">
+            <textarea name="config_json" rows="16">{{ config | tojson(indent=2) }}</textarea>
+            {% if config_errors %}
+            <div class="config-errors">
+              {% for err in config_errors %}
+              <p class="error-text">{{ err }}</p>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <button type="submit" class="action-btn" style="margin-top: 0.5rem;">Save Config</button>
+          </form>
+        </section>
+      </div>
+    </div>
   </main>
 </body>
 </html>
