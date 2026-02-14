@@ -62,7 +62,7 @@ async def _health_check() -> None:
                 continue
 
             if container_id in running_ids:
-                state["status"] = "healthy"
+                state["status"] = "running"
             else:
                 # Container not running — crashed or stopped
                 restart_count = state.get("restart_count", 0)
