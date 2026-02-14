@@ -79,7 +79,7 @@
 
       {% if groups[status] %}
         {% for task in groups[status] %}
-        <div class="task-card {{ status }}">
+        <div class="task-card {{ status }}" {% if task.locked_by %}onclick="openLogs('{{ task.locked_by }}', '{{ task.id[:8] }}')"{% endif %}>
           <div class="task-card-header">
             <div class="task-priority">P{{ task.priority }} - {% if task.priority == 1 %}High{% elif task.priority == 2 %}Medium{% else %}Low{% endif %}</div>
             <code class="task-id">#{{ task.id[:8] }}</code>
@@ -139,7 +139,7 @@
   {% if agent_cards %}
   <div class="agent-list">
     {% for card in agent_cards %}
-    <div class="agent-item">
+    <div class="agent-item" onclick="openLogs('{{ card.agent_id }}', '{{ card.task_id[:8] if card.task_id else "" }}')" style="cursor:pointer;">
       <div class="agent-avatar">{{ card.agent_id[:2]|upper }}</div>
       <div class="agent-info">
         <div class="agent-name">{{ card.agent_id }}</div>
@@ -586,10 +586,14 @@
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
       padding: 16px;
-      cursor: pointer;
+      cursor: default;
       transition: all 0.3s ease;
       position: relative;
       overflow: hidden;
+    }
+
+    .task-card.locked {
+      cursor: pointer;
     }
 
     .task-card::before {
@@ -959,6 +963,138 @@
       font-size: 11px;
     }
 
+    /* Log Viewer Panel */
+    .log-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .log-overlay.active {
+      display: flex;
+    }
+
+    .log-panel {
+      background: #1a1a2e;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      width: 90vw;
+      max-width: 1000px;
+      height: 70vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+    }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .log-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e8eaed;
+    }
+
+    .log-title code {
+      background: rgba(102, 126, 234, 0.15);
+      color: #818cf8;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+
+    .log-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .log-status .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .log-status .disconnected-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+
+    .btn-close-log {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: #9ca3af;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-close-log:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #e8eaed;
+    }
+
+    .log-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 20px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #d1d5db;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .log-content .log-line {
+      padding: 1px 0;
+    }
+
+    .log-content .log-line:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .log-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .log-footer label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .log-footer input[type="checkbox"] {
+      accent-color: #667eea;
+    }
+
     /* Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
@@ -1060,6 +1196,116 @@
       </div>
     </aside>
   </div>
+
+  <!-- Log Viewer Overlay -->
+  <div id="log-overlay" class="log-overlay" onclick="if(event.target===this)closeLogs()">
+    <div class="log-panel">
+      <div class="log-header">
+        <div class="log-title">
+          Agent: <span id="log-agent-name">—</span>
+          <code id="log-task-id"></code>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="log-status">
+            <div id="log-status-dot" class="live-dot"></div>
+            <span id="log-status-text">Connecting...</span>
+          </div>
+          <button class="btn-close-log" onclick="closeLogs()">Close</button>
+        </div>
+      </div>
+      <div id="log-content" class="log-content"></div>
+      <div class="log-footer">
+        <span id="log-line-count">0 lines</span>
+        <label>
+          <input type="checkbox" id="log-autoscroll" checked>
+          Auto-scroll
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let logWs = null;
+    let logLineCount = 0;
+
+    function openLogs(agentId, taskId) {
+      if (!agentId) return;
+      const overlay = document.getElementById('log-overlay');
+      const content = document.getElementById('log-content');
+      const agentName = document.getElementById('log-agent-name');
+      const taskLabel = document.getElementById('log-task-id');
+      const statusDot = document.getElementById('log-status-dot');
+      const statusText = document.getElementById('log-status-text');
+      const lineCount = document.getElementById('log-line-count');
+
+      // Reset
+      content.innerHTML = '';
+      logLineCount = 0;
+      lineCount.textContent = '0 lines';
+      agentName.textContent = agentId;
+      taskLabel.textContent = taskId ? '#' + taskId : '';
+      statusDot.className = 'live-dot';
+      statusText.textContent = 'Connecting...';
+      overlay.classList.add('active');
+
+      // Close existing WS
+      if (logWs) {
+        logWs.onclose = null;
+        logWs.close();
+      }
+
+      // Connect WebSocket
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      logWs = new WebSocket(proto + '//' + location.host + '/agents/' + agentId + '/logs/ws');
+
+      logWs.onopen = function() {
+        statusDot.className = 'live-dot';
+        statusText.textContent = 'Live';
+      };
+
+      logWs.onmessage = function(e) {
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        line.textContent = e.data;
+        content.appendChild(line);
+        logLineCount++;
+        lineCount.textContent = logLineCount + ' lines';
+
+        // Cap DOM at 2000 lines
+        if (content.children.length > 2000) {
+          content.removeChild(content.firstChild);
+        }
+
+        if (document.getElementById('log-autoscroll').checked) {
+          content.scrollTop = content.scrollHeight;
+        }
+      };
+
+      logWs.onclose = function() {
+        statusDot.className = 'disconnected-dot';
+        statusText.textContent = 'Disconnected';
+      };
+
+      logWs.onerror = function() {
+        statusDot.className = 'disconnected-dot';
+        statusText.textContent = 'Error';
+      };
+    }
+
+    function closeLogs() {
+      document.getElementById('log-overlay').classList.remove('active');
+      if (logWs) {
+        logWs.onclose = null;
+        logWs.close();
+        logWs = null;
+      }
+    }
+
+    // ESC to close
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeLogs();
+    });
+  </script>
 </body>
 </html>
 {% endif %}
