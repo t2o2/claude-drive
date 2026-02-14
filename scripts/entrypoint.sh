@@ -249,17 +249,22 @@ main() {
       continue
     fi
 
-    # Check for changes and commit
-    if commit_changes; then
-      IDLE_COUNT=0
+    # Commit any uncommitted changes (safety net — agent should commit in-session)
+    commit_changes || true
 
-      # Sync with upstream
+    # Check if there are commits to push (agent may have committed during session)
+    local_head=$(git rev-parse HEAD 2>/dev/null)
+    remote_head=$(git rev-parse "${UPSTREAM_REMOTE}/main" 2>/dev/null || echo "none")
+
+    if [ "$local_head" != "$remote_head" ]; then
+      IDLE_COUNT=0
+      log "Unpushed commits detected, syncing..."
       if ! sync_changes; then
         log_error "Failed to sync changes for session ${SESSION_COUNT}"
       fi
     else
       IDLE_COUNT=$((IDLE_COUNT + 1))
-      log "Idle count: ${IDLE_COUNT}/${MAX_IDLE}"
+      log "No new commits after session. Idle count: ${IDLE_COUNT}/${MAX_IDLE}"
 
       if [ "$IDLE_COUNT" -ge "$MAX_IDLE" ]; then
         log "Reached max idle count (${MAX_IDLE}), exiting gracefully"
