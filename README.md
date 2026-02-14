@@ -1,6 +1,6 @@
 # Claude Drive
 
-Framework for long-running Claude Code sessions. Tracks progress across sessions, preserves context, enforces TDD, and prevents premature completion.
+Framework for long-running Claude Code sessions. Tracks progress across sessions, preserves context, enforces TDD, and prevents premature completion. Includes a multi-agent system for running parallel Claude Code instances.
 
 ## Install
 
@@ -17,7 +17,7 @@ FORCE=1 curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/inst
 
 Start a Claude Code session — everything activates automatically.
 
-## Usage
+## Single-Agent Usage
 
 ### First-Run Setup
 
@@ -37,6 +37,7 @@ Work normally. The framework runs in the background:
 - **Lint output is tamed** — max 5 error lines in-context, full output in `.drive/lint-output.log`.
 - **Context is monitored** — warns at 75%, auto-saves state at 88% so the next session can resume.
 - **TDD is enforced** — editing source without tests triggers a reminder.
+- **Session end** — auto-commits tracked file changes with a `wip:` message, optionally notifies via Telegram.
 
 ### Spec Mode
 
@@ -46,27 +47,18 @@ For complex features (5+ files, new architecture), use the spec workflow:
 /spec "Add user authentication"
 ```
 
-Three phases run in sequence:
+Three phases: **Plan** (JSON plan + dual-agent review) → **Implement** (TDD per task) → **Verify** (compliance + quality review).
 
-1. **Plan** — creates a JSON plan in `docs/plans/`, reviewed by two agents in parallel
-2. **Implement** — TDD with targeted tests per task, completion gate requires actual test output
-3. **Verify** — dual-agent review (compliance + quality), full verification suite
-
-Resume an existing spec:
+Resume or check status:
 
 ```
 /spec docs/plans/2026-02-14-auth.json
-```
-
-Check spec status:
-
-```
 /spec
 ```
 
 ### Customization
 
-After install, remove language rules you don't need:
+Remove unused language rules after install:
 
 ```bash
 rm .claude/rules/python-rules.md      # if not using Python
@@ -74,130 +66,105 @@ rm .claude/rules/typescript-rules.md   # if not using TypeScript
 rm .claude/rules/rust-rules.md         # if not using Rust
 ```
 
-Tune context thresholds in `.claude/hooks/context_monitor.py` (`MAX_EXCHANGES`).
-
-Tune lint timeout in `.claude/settings.json`.
-
-### Session End
-
-Sessions auto-commit tracked file changes with a `wip:` message and optionally notify via Telegram.
-
 ### Telegram Notifications
 
-Enable during `/setup` or edit `.drive/config.json`:
+Enable during `/setup` or edit `.drive/config.json`. Get a bot token from [@BotFather](https://t.me/BotFather), get your chat ID from [@userinfobot](https://t.me/userinfobot).
 
-```json
-{
-  "telegram": {
-    "enabled": true,
-    "bot_token": "123456:ABC-DEF...",
-    "chat_id": "your-chat-id",
-    "last_update_id": 0,
-    "pairing_code": "482916",
-    "approved_senders": []
-  },
-  "tasks": []
-}
-```
+Send tasks to your bot between sessions — they appear on next session start. Only paired senders are processed. During `/setup`, a 6-digit pairing code is generated. Send it to your bot as the first message to pair.
 
-Get a bot token from [@BotFather](https://t.me/BotFather). Get your chat ID by messaging [@userinfobot](https://t.me/userinfobot).
-
-### Telegram Feedback
-
-Send messages to your bot between sessions — they appear as tasks on the next session start:
-
-```
-[TELEGRAM FEEDBACK] 2 new task(s) from Telegram:
-- Fix the login bug
-- Review PR #42
-```
-
-Manage tasks during a session:
+Manage tasks and pairing:
 
 ```
 /comment
 ```
 
-View pending tasks, mark them done, dismiss, or poll for new messages.
-
-### Telegram Pairing
-
-Only approved senders can submit feedback. During `/setup`, a 6-digit pairing code is generated. Send this code as your first message to the bot to pair:
-
-1. Run `/setup` with Telegram enabled — note the pairing code
-2. Open your bot in Telegram and send the 6-digit code
-3. Bot replies "Paired successfully" — future messages are processed as tasks
-
-Manage pairing (view senders, regenerate code, revoke access):
-
-```
-/comment → Manage pairing
-```
-
-## Supported Languages
-
-Python (uv + ruff + pytest) · TypeScript (npm + eslint + vitest) · Rust (cargo + clippy)
-
 ## Multi-Agent Mode
 
-Run multiple Claude Code instances in parallel, each with a specialized role (implementer, reviewer, docs, janitor), communicating via a git-synchronized task board.
+Run multiple Claude Code instances in parallel, each with a specialized role, communicating via a git-synchronized task board.
 
 ### Prerequisites
 
-**Docker runtime:**
 - Docker Desktop
-- `ANTHROPIC_API_KEY` environment variable
+- Claude Code CLI authenticated (`claude login`) or `ANTHROPIC_API_KEY` env var
 
-**DevPod runtime:**
-- [DevPod CLI](https://devpod.sh) + cloud provider (AWS, GCP, Kubernetes)
-- `ANTHROPIC_API_KEY` environment variable
-- Git remote accessible from cloud VMs
-
-### Quick Start (Docker)
+### Quick Start
 
 ```bash
-# Configure fleet in .drive/agents/config.json (default: 2 implementers + 1 reviewer + 1 docs)
-export ANTHROPIC_API_KEY=sk-ant-...
+# 1. Install Claude Drive into your project
+cd your-project
+curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/install.sh | bash
 
-# Launch agents
+# 2. (Optional) Edit fleet config — defaults to 2 implementers + 1 reviewer + 1 docs
+#    Edit .drive/agents/config.json to change roles, counts, or model
+
+# 3. Add tasks to the board
+python3 scripts/board.py add "Implement user authentication" --priority 1
+python3 scripts/board.py add "Add input validation to API endpoints" --priority 2
+python3 scripts/board.py add "Write integration tests for payment flow" --priority 3
+
+# 4. Launch agents
 scripts/run-agents.sh
 
-# Monitor
+# 5. Monitor
 scripts/agent-status.sh
 
-# Stop
+# 6. Stop
 scripts/stop-agents.sh
 ```
 
-### Quick Start (DevPod)
+### Authentication
 
-```bash
-# Set runtime to devpod in .drive/agents/config.json
-# Set devpod.provider (e.g. "aws", "gcloud", "kubernetes")
-# Set sync.upstream_remote to a git URL (e.g. git@github.com:user/repo.git)
-export ANTHROPIC_API_KEY=sk-ant-...
+Agents need Claude CLI access. Two methods (in order of preference):
 
-scripts/run-agents.sh
+| Method | Setup | How it works |
+|--------|-------|--------------|
+| **Credentials file** | Run `claude login` on your machine | `~/.claude/credentials.json` is mounted read-only into each container |
+| **API key** | `export ANTHROPIC_API_KEY=sk-ant-...` | Passed as env var into each container |
+
+If `~/.claude/credentials.json` exists, it's used automatically. No extra config needed.
+
+### Agent Roles
+
+| Role | What it does | Modifies code? |
+|------|-------------|----------------|
+| **implementer** | Claims tasks, writes code with TDD, runs tests, commits | Yes |
+| **reviewer** | Reviews recent commits, posts messages about issues | No |
+| **docs** | Updates documentation based on recent changes | Yes (docs only) |
+| **janitor** | Scans for lint/quality issues, posts messages | No |
+
+### Fleet Config
+
+Edit `.drive/agents/config.json`:
+
+```json
+{
+  "runtime": "docker",
+  "roles": [
+    { "name": "implementer", "count": 2, "model": "claude-sonnet-4-5-20250929", "max_sessions": 20 },
+    { "name": "reviewer", "count": 1, "model": "claude-sonnet-4-5-20250929", "max_sessions": 20 },
+    { "name": "docs", "count": 1, "model": "claude-sonnet-4-5-20250929", "max_sessions": 10 }
+  ]
+}
 ```
 
-### Runtime Comparison
+### Task Board
 
-| | Docker | DevPod |
-|---|---|---|
-| Where | Local machine | Cloud VM |
-| Cost | Free | Pay-per-use |
-| Scale | 3-5 agents | 20+ agents |
-| Sync | Volume mount | Git SSH/HTTPS |
-| Setup | `docker` CLI | `devpod` CLI + provider |
+Add and manage tasks from the CLI:
+
+```bash
+python3 scripts/board.py add "Fix login bug" --priority 1    # Add a task
+python3 scripts/board.py list                                 # List all tasks
+python3 scripts/board.py list --status open                   # Filter by status
+```
+
+Or use the interactive `/board` command inside any Claude session.
 
 ### Monitoring
 
-Use the `/board` command in any Claude session to view tasks, messages, agent status, and manage locks. Or use the CLI scripts directly:
-
 ```bash
-scripts/agent-status.sh          # Fleet overview
-python3 scripts/board.py list    # All tasks as JSON
-python3 scripts/lock.py list     # Active locks
+scripts/agent-status.sh              # Fleet overview + last 5 log lines per agent
+python3 scripts/board.py list        # Task status
+python3 scripts/lock.py list         # Who's working on what
 ```
 
 ### Cost Controls
@@ -206,27 +173,60 @@ python3 scripts/lock.py list     # Active locks
 - Idle detection: 5 consecutive no-op sessions → agent exits
 - `scripts/stop-agents.sh` to halt all agents immediately
 
-### Security
+### DevPod (Cloud VMs)
 
-- API key passed via environment variable, never stored in files
-- Agent prompts are read from upstream (immutable to agents)
-- Board messages are treated as data, not executable instructions
-
-### DevPod Provider Examples
+For larger fleets (20+ agents), use DevPod instead of local Docker:
 
 ```bash
-# AWS
-devpod provider add aws
-devpod provider use aws
+# Install DevPod CLI: https://devpod.sh
+devpod provider add aws    # or gcloud, kubernetes
 
-# Google Cloud
-devpod provider add gcloud
-devpod provider use gcloud
+# Update .drive/agents/config.json:
+#   "runtime": "devpod"
+#   "devpod.provider": "aws"
+#   "sync.upstream_remote": "git@github.com:user/repo.git"
 
-# Kubernetes
-devpod provider add kubernetes
-devpod provider use kubernetes
+scripts/run-agents.sh
 ```
+
+| | Docker | DevPod |
+|---|---|---|
+| Where | Local machine | Cloud VM |
+| Cost | Free | Pay-per-use |
+| Scale | 3-5 agents | 20+ agents |
+| Sync | Volume mount | Git SSH/HTTPS |
+| Setup | Docker Desktop | `devpod` CLI + provider |
+
+### How It Works
+
+Each agent runs a **Ralph-loop** (infinite session cycle):
+
+1. Clone project from upstream git repo
+2. Read task board, claim highest-priority open task
+3. Run a Claude Code session with role-specific prompt
+4. Commit changes, sync back to upstream
+5. Sleep 10s, repeat
+
+Agents coordinate via file-based locks (`.drive/agents/locks/`) and a file-per-task board (`.drive/agents/tasks/`). Git push conflicts serve as natural lock arbitration.
+
+### Security
+
+- Credentials mounted read-only — agents can't modify your auth
+- API keys passed via env var, never stored in project files
+- Agent prompts read from upstream (immutable to agents)
+- Board messages treated as data, not executable instructions
+
+### Smoke Test
+
+Verify the Docker setup before launching real agents:
+
+```bash
+scripts/smoke-test.sh --docker-only
+```
+
+## Supported Languages
+
+Python (uv + ruff + pytest) · TypeScript (npm + eslint + vitest) · Rust (cargo + clippy)
 
 ## Credits
 
