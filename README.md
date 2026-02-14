@@ -74,4 +74,4 @@ Python (uv + ruff + pytest) · TypeScript (npm + eslint + vitest) · Rust (cargo
 
 ## Credits
 
-Patterns from Anthropic's engineering articles on [building a C compiler](https://www.anthropic.com) across 2000 Claude sessions and [effective harnesses for long-running agents](https://www.anthropic.com).
+Patterns from Anthropic's engineering articles on [building a C compiler](https://www.anthropic.com/engineering/building-c-compiler) across 2000 Claude sessions and [effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents).
