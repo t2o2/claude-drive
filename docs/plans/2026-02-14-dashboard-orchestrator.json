@@ -1,0 +1,161 @@
+{
+  "title": "Dashboard as Full Docker Orchestrator",
+  "status": "COMPLETE",
+  "created": "2026-02-14",
+  "description": "Transform the existing htmx dashboard from a read-mostly monitor into the central control plane for the multi-agent system. The dashboard will manage Docker container lifecycle (start/stop/restart per-agent), stream logs via WebSocket, monitor health with auto-restart, provide config editing, and run preflight checks before fleet launch. Enforces code isolation by keeping each agent in its own Docker container with a separate git clone. Docker-only for v1; DevPod shows fallback message directing to CLI scripts.",
+  "tasks": [
+    {
+      "id": 1,
+      "name": "Docker orchestrator module",
+      "description": "Create scripts/orchestrator.py — a Python module that wraps Docker CLI via subprocess to manage agent containers. Functions: build_image(image_name, dockerfile_dir) -> bool, init_upstream(project_root, upstream_path, branch) -> bool, start_agent(agent_id, role, model, max_sessions, image, upstream_path, credentials_path, api_key) -> dict with {container_id, status}, stop_agent(container_id) -> bool, restart_agent(container_id) -> dict, stop_fleet() -> int (count stopped), get_agent_logs(container_id, lines=100) -> str, list_running_agents() -> list[dict] with {container_id, name, status, running_for}. All subprocess calls use list args (never shell=True) with timeout=30s. Role names validated: alphanumeric + hyphen only, max 32 chars. Container naming: claude-agent-{role}-{index}. Reads config from passed paths, not global state.",
+      "dependencies": [],
+      "dod": "All 8 functions implemented and return typed dicts/primitives. Role name validation rejects invalid chars. Subprocess calls use list args with timeout. Tests verify: build_image, start_agent, stop_agent, stop_fleet, list_running_agents, get_agent_logs — all with subprocess mocking. 'uv run pytest tests/test_orchestrator.py -x' passes.",
+      "files": ["scripts/orchestrator.py", "tests/test_orchestrator.py"],
+      "passes": true
+    },
+    {
+      "id": 2,
+      "name": "Fleet control API routes",
+      "description": "Add routes to dashboard.py that wire the orchestrator into the web API. Routes: POST /fleet/start (starts all agents per config), POST /fleet/stop (stops all), GET /fleet/status (returns fleet state as JSON), POST /agents/{agent_id}/stop, POST /agents/{agent_id}/restart. Fleet state tracked in module-level dict protected by asyncio.Lock: _fleet_state: dict[str, dict] mapping agent_id -> {status, container_id, started_at, role, model, restart_count}. On app startup, reconstruct state from orchestrator.list_running_agents() to handle dashboard restarts. Validate agent_id matches ^[a-z0-9-]+$ before any lookup. Bind to 127.0.0.1 by default (not 0.0.0.0). Add --port and --host CLI args.",
+      "dependencies": [1],
+      "dod": "All 5 routes respond correctly. Fleet state dict protected by asyncio.Lock. State reconstructed from docker ps on startup. agent_id validated with regex. Dashboard binds to 127.0.0.1:8000 by default. POST /fleet/start creates containers, POST /fleet/stop removes them, GET /fleet/status returns JSON.",
+      "files": ["scripts/dashboard.py"],
+      "passes": true
+    },
+    {
+      "id": 3,
+      "name": "Fleet control UI",
+      "description": "Add fleet control section to dashboard.html template. New render_fleet() macro with: fleet status banner (Stopped/Starting/Running with colored indicator), Start Fleet button (POST /fleet/start, hx-confirm='Start the agent fleet?'), Stop Fleet button (POST /fleet/stop, hx-confirm='Stop all agents?'). Start button disabled when fleet running or no open tasks. Stop button disabled when fleet stopped. When no open tasks exist, show warning banner: 'No open tasks on the board. Add tasks before starting the fleet.' Fleet section polls /partials/fleet every 3s. Add /partials/fleet route to dashboard.py. When runtime=devpod in config, show message: 'DevPod runtime detected. Use scripts/run-agents.sh for fleet management.'",
+      "dependencies": [2],
+      "dod": "Fleet controls section renders with Start/Stop buttons. Buttons correctly disabled based on state. Empty board shows warning. DevPod shows fallback message. Fleet partial polls every 3s. Start/Stop trigger correct POST routes.",
+      "files": ["scripts/templates/dashboard.html", "scripts/dashboard.py"],
+      "passes": true
+    },
+    {
+      "id": 4,
+      "name": "Agent cards with per-agent controls",
+      "description": "Replace the current 'Active Agents' table (render_agents macro) with render_agent_cards() macro. Each card shows: agent_id, role badge, assigned task ID (from lock, if any), container status (running/stopped/crashed), uptime, heartbeat freshness. Per-agent buttons: Stop (POST /agents/{id}/stop, hx-confirm), Restart (POST /agents/{id}/restart, hx-confirm). Cards in CSS grid (3 columns). Data merge strategy: start from fleet state dict (container info), enrich with lock data (task assignment, heartbeat). Agents with container but no lock = idle. Agents with lock but no container = orphaned lock (show warning). Buttons debounced: disabled for 3s after click via htmx hx-disable-elt.",
+      "dependencies": [2, 3],
+      "dod": "Agent cards replace the old table. All fields populated from merged container+lock data. Per-agent stop/restart buttons work with confirmation dialogs. Cards update via htmx polling. Orphaned locks show warning badge. Buttons debounced.",
+      "files": ["scripts/templates/dashboard.html", "scripts/dashboard.py"],
+      "passes": true
+    },
+    {
+      "id": 5,
+      "name": "WebSocket log streaming",
+      "description": "Add WebSocket endpoint /agents/{agent_id}/logs/ws that streams container logs in real-time. Validate agent_id with regex. Look up container_id from fleet state. Use asyncio.create_subprocess_exec('docker', 'logs', '--tail', '100', '-f', container_id) and forward stdout lines over WebSocket. Use try/finally to ensure subprocess is killed on WebSocket disconnect (browser close, tab close, network drop). Limit log line rate: if >500 lines/sec, drop excess and send '[log output throttled]'. Also add GET /agents/{agent_id}/logs returning last 100 lines as HTML partial (monospace pre block). In template, each agent card has collapsible log viewer. Clicking 'Logs' toggles a div that connects WebSocket via htmx ws extension. ANSI escape codes stripped before sending to client.",
+      "dependencies": [4],
+      "dod": "WebSocket streams live container logs. Subprocess killed on disconnect (verified in test). Rate limiting prevents flooding. Static log endpoint returns last 100 lines. Log viewer toggles in agent card. ANSI codes stripped.",
+      "files": ["scripts/dashboard.py", "scripts/templates/dashboard.html"],
+      "passes": true
+    },
+    {
+      "id": 6,
+      "name": "Health monitor background task",
+      "description": "Add a FastAPI lifespan background task that runs every 30 seconds. Checks each agent in fleet state: is container still running (orchestrator.list_running_agents()), is heartbeat stale (>10 min from lock file). Updates fleet state health field: 'healthy', 'stale', 'crashed', 'restarting'. Auto-restart policy: if container not in docker ps and restart_count < 3, call orchestrator.restart_agent() and increment restart_count. Restart count persisted via Docker container label 'claude-drive.restart-count' (survives dashboard restart). Health status shown in agent cards via colored badges. All fleet state access uses the asyncio.Lock from task 2. Add 'restart_policy' field to config.json: {enabled: true, max_restarts: 3}. Update validate_agent_config.py to accept the new field.",
+      "dependencies": [1, 4],
+      "dod": "Background task runs every 30s. Crashed containers detected and restarted up to 3x. Restart count persisted in container labels. Health status visible in agent cards. asyncio.Lock used for all fleet state access. validate_agent_config.py updated.",
+      "files": ["scripts/dashboard.py", "scripts/orchestrator.py", "scripts/validate_agent_config.py"],
+      "passes": true
+    },
+    {
+      "id": 7,
+      "name": "Config management UI",
+      "description": "Add config section to dashboard. GET /config returns current config.json as JSON. New render_config() macro: JSON textarea (monospace, 20 rows) with current config pre-filled. Save button (POST /config) validates via validate_agent_config.validate(), backs up to config.json.bak, then writes. Validation errors shown as red text below textarea. Save disabled when fleet is running (check fleet state). Add max_agents validation: sum of role counts must be <= 20 (configurable). Role name validation: alphanumeric + hyphen only. Config section added to dashboard below messages, polls /partials/config every 10s.",
+      "dependencies": [2],
+      "dod": "Config editor renders as JSON textarea with current config. Save validates and writes file. Backup created before save. Validation errors shown inline. Save disabled when fleet running. Role names and max agent count validated.",
+      "files": ["scripts/dashboard.py", "scripts/templates/dashboard.html", "scripts/validate_agent_config.py"],
+      "passes": true
+    },
+    {
+      "id": 8,
+      "name": "Preflight checks and image build",
+      "description": "Add GET /fleet/preflight that runs checks and returns JSON array of {name, status: pass|fail|warn, message}. Checks: (1) Docker daemon running — docker ps, (2) Docker image exists — docker images, if missing trigger async build and return status='building', (3) credentials exist — ~/.claude/credentials.json or ANTHROPIC_API_KEY env var, (4) config valid — validate_agent_config.validate(), (5) open tasks on board — warning if zero, not blocking. Image build runs as background task; GET /fleet/build-status returns progress. Fleet start button shows preflight results as checklist before confirming. If any critical check (1-4) fails, Start button disabled. Image build is async: show spinner while building, re-run preflight when done.",
+      "dependencies": [2, 3],
+      "dod": "Preflight endpoint returns check results for all 5 checks. Build runs async as background task with status endpoint. Dashboard shows checklist with pass/fail/warn icons. Start button disabled if critical checks fail. Missing image triggers build automatically.",
+      "files": ["scripts/dashboard.py", "scripts/orchestrator.py", "scripts/templates/dashboard.html"],
+      "passes": true
+    },
+    {
+      "id": 9,
+      "name": "Update install.sh and README",
+      "description": "Add scripts/orchestrator.py to install.sh FILES array. Update README: (1) Multi-Agent Quick Start now starts with 'uv run scripts/dashboard.py', then add tasks in browser, then click Start Fleet. (2) Add Dashboard section with screenshot placeholder describing fleet controls, agent cards, log viewer, config editor. (3) Keep run-agents.sh/stop-agents.sh documented as CLI fallback. (4) Document that dashboard binds to 127.0.0.1 by default, use --host 0.0.0.0 for LAN access (with security warning).",
+      "dependencies": [1, 2, 3, 4, 5, 6, 7, 8],
+      "dod": "install.sh includes orchestrator.py. README documents dashboard-first workflow with updated Quick Start. CLI scripts documented as fallback. Security note about host binding included.",
+      "files": ["install.sh", "README.md"],
+      "passes": true
+    }
+  ],
+  "architecture_decisions": [
+    {
+      "decision": "Python orchestrator module instead of calling shell scripts",
+      "rationale": "Shell scripts are hard to test, hard to integrate with FastAPI async, and require subprocess+parsing. A Python module gives us typed returns, testability, and direct integration with the dashboard server."
+    },
+    {
+      "decision": "Docker CLI via subprocess (list args, never shell=True), not Docker SDK",
+      "rationale": "Avoids adding docker-py as a dependency. Docker CLI is guaranteed present if Docker Desktop is installed. Keeps PEP 723 deps minimal (just fastapi[standard]). List args prevent command injection. The orchestrator only needs: build, run, stop, ps, logs."
+    },
+    {
+      "decision": "Fleet state dict protected by asyncio.Lock, reconstructed on startup",
+      "rationale": "Fleet state is transient — describes running containers. On dashboard restart, reconstruct from docker ps --filter name=claude-agent-. asyncio.Lock prevents race between health monitor background task and HTTP request handlers. Restart counts persisted in Docker container labels."
+    },
+    {
+      "decision": "Each container clones from upstream bare repo (not worktrees)",
+      "rationale": "Full isolation: each agent has its own .git, working tree, and can sync independently. Matches the DevPod path exactly. Worktrees would share .git which creates lock contention."
+    },
+    {
+      "decision": "WebSocket for log streaming with try/finally subprocess cleanup",
+      "rationale": "FastAPI has native WebSocket support. htmx has a ws extension. try/finally ensures docker logs subprocess is killed on any disconnect (tab close, network drop). Rate limiting prevents flooding."
+    },
+    {
+      "decision": "Config editor as JSON textarea with backup-before-save",
+      "rationale": "Config schema may evolve. A JSON editor is always correct. Backup to .bak before save provides rollback. Validation via existing validate_agent_config.py catches errors before save."
+    },
+    {
+      "decision": "Bind to 127.0.0.1 by default, not 0.0.0.0",
+      "rationale": "No authentication layer in v1. Binding to localhost prevents LAN/internet exposure. Users can opt into --host 0.0.0.0 for remote access with explicit security acknowledgment."
+    },
+    {
+      "decision": "Docker-only for v1, DevPod shows fallback message",
+      "rationale": "DevPod requires SSH key management, cloud provider config, and remote execution — significantly more complex. Docker covers the primary local use case. DevPod users directed to existing CLI scripts."
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Command injection via role names in Docker commands",
+      "mitigation": "Strict role name validation (^[a-z0-9-]+$, max 32 chars) in orchestrator.py. All subprocess calls use list args, never shell=True."
+    },
+    {
+      "risk": "Docker not installed or daemon not running",
+      "mitigation": "Preflight checks (task 8) detect this before fleet start. Dashboard works without Docker for task management — only fleet controls require it."
+    },
+    {
+      "risk": "Subprocess calls to Docker CLI may hang or timeout",
+      "mitigation": "All subprocess calls use timeout=30s. Async subprocess for log streaming with try/finally cleanup on WebSocket disconnect."
+    },
+    {
+      "risk": "Dashboard restart loses fleet state",
+      "mitigation": "On startup, reconstruct state from docker ps --filter name=claude-agent-. Restart counts persisted in container labels. Running containers are rediscovered automatically."
+    },
+    {
+      "risk": "Race condition between health monitor and HTTP handlers on fleet state",
+      "mitigation": "asyncio.Lock protects all fleet state dict access. Health monitor and request handlers acquire lock before read/write."
+    },
+    {
+      "risk": "WebSocket zombie subprocess on abnormal disconnect",
+      "mitigation": "try/finally in WebSocket handler explicitly kills docker logs subprocess. Rate limiting prevents memory exhaustion from verbose agents."
+    },
+    {
+      "risk": "User starts too many agents, exhausting machine resources",
+      "mitigation": "Max agent count validation in config (sum of role counts <= 20). Preflight checks warn about resource usage."
+    },
+    {
+      "risk": "Port 8000 conflict",
+      "mitigation": "Add --port CLI argument to dashboard.py. Default 8000, user can override."
+    },
+    {
+      "risk": "Concurrent config edits overwrite each other",
+      "mitigation": "Config save backs up to .bak first. Single-user tool so low probability, but backup provides recovery."
+    }
+  ]
+}

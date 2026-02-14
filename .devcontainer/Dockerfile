@@ -19,4 +19,18 @@ RUN npm install -g @anthropic-ai/claude-code
 RUN git config --global user.name "Claude Agent" \
     && git config --global user.email "agent@claude-drive"
 
+# Copy scripts to a separate location (not workspace root to allow clean git clone)
+COPY scripts/ /opt/claude-drive/scripts/
+COPY .claude/ /opt/claude-drive/.claude/
+RUN chmod +x /opt/claude-drive/scripts/entrypoint.sh
+
+# Create non-root user for agent operations
+RUN useradd -m -s /bin/bash claude && \
+    mkdir -p /workspace && \
+    chown -R claude:claude /workspace
+
+# Set PATH so scripts are accessible
+ENV PATH="/opt/claude-drive/scripts:$PATH"
+
+USER claude
 WORKDIR /workspace

@@ -119,7 +119,7 @@ def start_agent(
     if api_key:
         cmd.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"])
 
-    cmd.extend([image, "bash", "/workspace/scripts/entrypoint.sh"])
+    cmd.extend([image, "bash", "/opt/claude-drive/scripts/entrypoint.sh"])
 
     result = _run(cmd)
     container_id = result.stdout.strip()[:12] if result.returncode == 0 else ""
