@@ -177,12 +177,16 @@ run_session() {
   local prompt
   prompt=$(cat "$role_file")
 
-  # Inject board location into prompt so the agent knows where to find tasks
-  local board_context="BOARD_DIR=${BOARD_DIR}
-Tasks directory: ${BOARD_DIR}/tasks/
-Locks directory: ${BOARD_DIR}/locks/
-Messages directory: ${BOARD_DIR}/messages/
-Use 'python3 scripts/board.py' with --tasks-dir ${BOARD_DIR}/tasks/ to interact with the task board."
+  # Replace board.py references in prompt with full path + correct --tasks-dir
+  prompt="${prompt//python3 scripts\/board.py/python3 scripts\/board.py --tasks-dir ${BOARD_DIR}\/tasks\/ --messages-dir ${BOARD_DIR}\/messages\/}"
+  # Also replace lock.py references with full path
+  prompt="${prompt//python3 scripts\/lock.py/python3 scripts\/lock.py --locks-dir ${BOARD_DIR}\/locks\/}"
+
+  # Inject board location context at the top
+  local board_context="IMPORTANT: The task board is mounted at ${BOARD_DIR}/.
+All board.py commands MUST include: --tasks-dir ${BOARD_DIR}/tasks/ --messages-dir ${BOARD_DIR}/messages/
+All lock.py commands MUST include: --locks-dir ${BOARD_DIR}/locks/
+Example: python3 scripts/board.py --tasks-dir ${BOARD_DIR}/tasks/ list --status open"
 
   log "Starting Claude session ${SESSION_COUNT} with role ${AGENT_ROLE}"
 
