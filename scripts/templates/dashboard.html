@@ -1,0 +1,309 @@
+{# ── Macros ─────────────────────────────────────────── #}
+
+{% macro render_stats(stats) %}
+<section id="stats" hx-get="/partials/stats" hx-trigger="every 5s" hx-swap="outerHTML">
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-label">Open</span>
+      <span class="stat-value">{{ stats.open }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">In Progress</span>
+      <span class="stat-value">{{ stats.locked }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Done</span>
+      <span class="stat-value">{{ stats.done }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Failed</span>
+      <span class="stat-value">{{ stats.failed }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Completion</span>
+      <span class="stat-value">{{ stats.completion }}%</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Active Agents</span>
+      <span class="stat-value">{{ stats.active_agents }}</span>
+    </div>
+  </div>
+</section>
+{% endmacro %}
+
+{% macro render_board(groups) %}
+<section id="board" hx-get="/partials/board" hx-trigger="every 3s" hx-swap="outerHTML">
+  <div class="kanban">
+    {% for status, label, color in [("open", "Open", "#4caf50"), ("locked", "In Progress", "#ff9800"), ("done", "Done", "#2196f3"), ("failed", "Failed", "#f44336")] %}
+    <div class="kanban-column">
+      <h4 class="column-header" style="border-left: 4px solid {{ color }}; padding-left: 0.5rem;">
+        {{ label }} <small>({{ groups[status]|length }})</small>
+      </h4>
+      {% for task in groups[status] %}
+      <article class="task-card" style="border-left: 4px solid {{ color }};">
+        <div class="task-priority">P{{ task.priority }}</div>
+        <p class="task-desc">{{ task.description }}</p>
+        {% if task.locked_by %}
+        <small class="task-agent">{{ task.locked_by }}</small>
+        {% endif %}
+        {% if task.reason %}
+        <small class="task-reason">{{ task.reason }}</small>
+        {% endif %}
+        <small class="task-time">{{ task.created_at | timeago }}</small>
+        <div class="task-actions">
+          {% if status in ("done", "failed") %}
+          <button class="btn-small btn-reopen"
+                  hx-post="/tasks/{{ task.id }}/reopen"
+                  hx-target="#board"
+                  hx-swap="outerHTML">Reopen</button>
+          {% endif %}
+          {% if status != "locked" %}
+          <button class="btn-small btn-delete"
+                  hx-post="/tasks/{{ task.id }}/delete"
+                  hx-target="#board"
+                  hx-swap="outerHTML"
+                  hx-confirm="Delete task '{{ task.description }}'?">Del</button>
+          {% endif %}
+        </div>
+      </article>
+      {% else %}
+      <p class="empty-col">No tasks</p>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  <div style="text-align: right; margin-top: 0.5rem;">
+    <button class="btn-small"
+            hx-post="/tasks/archive"
+            hx-target="#board"
+            hx-swap="outerHTML"
+            hx-confirm="Archive done tasks older than 7 days?">Archive Old</button>
+  </div>
+</section>
+{% endmacro %}
+
+{% macro render_agents(locks) %}
+<section id="agents" hx-get="/partials/agents" hx-trigger="every 5s" hx-swap="outerHTML">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h4>Active Agents</h4>
+    <button class="btn-small"
+            hx-post="/locks/cleanup"
+            hx-target="#agents"
+            hx-swap="outerHTML">Cleanup Stale</button>
+  </div>
+  {% if locks %}
+  <figure>
+    <table>
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Task</th>
+          <th>Acquired</th>
+          <th>Heartbeat</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lk in locks %}
+        <tr>
+          <td>{{ lk.agent_id }}</td>
+          <td><code>{{ lk.task_id }}</code></td>
+          <td>{{ lk.acquired_ago }}</td>
+          <td>{{ lk.heartbeat_ago }}</td>
+          <td>
+            {% if lk.fresh %}
+            <span class="badge-fresh">Fresh</span>
+            {% else %}
+            <span class="badge-stale">Stale</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </figure>
+  {% else %}
+  <p class="empty-col">No active locks</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{% macro render_messages(messages) %}
+<section id="messages" hx-get="/partials/messages" hx-trigger="every 5s" hx-swap="outerHTML">
+  <h4>Messages</h4>
+  {% if messages %}
+  <div class="message-list">
+    {% for msg in messages %}
+    <div class="message-item">
+      <span class="msg-route">{{ msg["from"] }} &rarr; {{ msg.to }}</span>
+      <span class="msg-time">{{ msg.timestamp | timeago }}</span>
+      <p class="msg-text">{{ msg.text }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty-col">No messages</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{# ── Rendering ─────────────────────────────────────── #}
+
+{% if partial == "stats" %}
+  {{ render_stats(stats) }}
+{% elif partial == "board" %}
+  {{ render_board(groups) }}
+{% elif partial == "agents" %}
+  {{ render_agents(locks) }}
+{% elif partial == "messages" %}
+  {{ render_messages(messages) }}
+{% else %}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <style>
+    :root {
+      --card-bg: #1a1a2e;
+      --card-border: #333;
+    }
+    body { padding: 1rem 2rem; }
+    h1 { margin-bottom: 0.5rem; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+    }
+    .stat-label {
+      display: block;
+      font-size: 0.75rem;
+      opacity: 0.7;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-value {
+      display: block;
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin-top: 0.25rem;
+    }
+
+    .add-form {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+      margin-bottom: 1.5rem;
+    }
+    .add-form input[type="text"] { flex: 1; margin-bottom: 0; }
+    .add-form select { width: 80px; margin-bottom: 0; }
+    .add-form button { margin-bottom: 0; white-space: nowrap; }
+
+    .kanban {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .kanban-column { min-height: 200px; }
+    .column-header { margin-bottom: 0.75rem; }
+    .column-header small { opacity: 0.6; }
+
+    .task-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .task-priority {
+      font-size: 0.7rem;
+      font-weight: bold;
+      opacity: 0.7;
+      text-transform: uppercase;
+    }
+    .task-desc {
+      margin: 0.25rem 0;
+      font-size: 0.9rem;
+      word-break: break-word;
+    }
+    .task-agent { display: block; color: #ff9800; font-size: 0.8rem; }
+    .task-reason { display: block; color: #f44336; font-size: 0.8rem; font-style: italic; }
+    .task-time { display: block; opacity: 0.5; font-size: 0.75rem; }
+    .task-actions { margin-top: 0.5rem; display: flex; gap: 0.25rem; }
+
+    .btn-small {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid var(--card-border);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+    .btn-small:hover { background: var(--card-border); }
+    .btn-delete { color: #f44336; border-color: #f44336; }
+    .btn-delete:hover { background: #f44336; color: #fff; }
+    .btn-reopen { color: #4caf50; border-color: #4caf50; }
+    .btn-reopen:hover { background: #4caf50; color: #fff; }
+
+    .empty-col { opacity: 0.4; font-size: 0.85rem; font-style: italic; }
+
+    .badge-fresh { color: #4caf50; font-weight: bold; font-size: 0.8rem; }
+    .badge-stale { color: #f44336; font-weight: bold; font-size: 0.8rem; }
+
+    .message-list { max-height: 300px; overflow-y: auto; }
+    .message-item { border-bottom: 1px solid var(--card-border); padding: 0.5rem 0; }
+    .message-item:last-child { border-bottom: none; }
+    .msg-route { font-weight: bold; font-size: 0.85rem; }
+    .msg-time { float: right; opacity: 0.5; font-size: 0.75rem; }
+    .msg-text { margin: 0.25rem 0 0; font-size: 0.85rem; opacity: 0.85; }
+
+    @media (max-width: 900px) {
+      .stats-grid { grid-template-columns: repeat(3, 1fr); }
+      .kanban { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .kanban { grid-template-columns: 1fr; }
+      .add-form { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Agent Dashboard</h1>
+  </header>
+
+  <main>
+    {{ render_stats(stats) }}
+
+    <form class="add-form" hx-post="/tasks" hx-target="#board" hx-swap="outerHTML">
+      <input type="text" name="description" placeholder="New task description..." required>
+      <select name="priority">
+        <option value="3">P3</option>
+        <option value="2">P2</option>
+        <option value="1" selected>P1</option>
+      </select>
+      <button type="submit">Add Task</button>
+    </form>
+
+    {{ render_board(groups) }}
+    {{ render_agents(locks) }}
+    {{ render_messages(messages) }}
+  </main>
+</body>
+</html>
+{% endif %}

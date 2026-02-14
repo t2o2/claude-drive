@@ -92,6 +92,8 @@ FILES=(
   scripts/agent-status.sh
   scripts/entrypoint.sh
   scripts/smoke-test.sh
+  scripts/dashboard.py
+  scripts/templates/dashboard.html
 )
 
 # --- Download files ---

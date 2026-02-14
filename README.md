@@ -159,6 +159,21 @@ python3 scripts/board.py list --status open                   # Filter by status
 
 Or use the interactive `/board` command inside any Claude session.
 
+### Dashboard
+
+A web UI for monitoring agents and managing tasks:
+
+```bash
+uv run scripts/dashboard.py          # Start on http://localhost:8000
+```
+
+Features:
+- Kanban board with Open, In Progress, Done, Failed columns
+- Add/delete/reopen tasks from the browser
+- Agent activity with heartbeat freshness
+- Inter-agent messages feed
+- Auto-refreshing via htmx (no manual reload)
+
 ### Monitoring
 
 ```bash
