@@ -12,7 +12,7 @@ curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/install.sh |
 Overwrite an existing install:
 
 ```bash
-FORCE=1 curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/install.sh | FORCE=1 bash
 ```
 
 Start a Claude Code session — everything activates automatically.
