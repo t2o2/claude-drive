@@ -13,6 +13,7 @@ Output: Context injected to stdout, instructions to stderr
 
 import json
 import os
+import random
 import re
 import subprocess
 import sys
@@ -98,8 +99,29 @@ def read_continuation(project_dir: str) -> str | None:
     return content if content else None
 
 
+def _send_telegram_reply(bot_token: str, chat_id: str, text: str) -> None:
+    """Send a reply via Telegram bot API. Fails silently."""
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    try:
+        subprocess.run(
+            [
+                "curl", "-s", "-X", "POST", url,
+                "-d", f"chat_id={chat_id}",
+                "-d", f"text={text}",
+            ],
+            capture_output=True,
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+
 def poll_telegram_feedback(project_dir: str) -> list[str]:
-    """Poll Telegram getUpdates for messages sent between sessions."""
+    """Poll Telegram getUpdates for messages sent between sessions.
+
+    Only processes messages from approved senders. Unknown senders can
+    pair by sending the pairing code as their first message.
+    """
     config_path = os.path.join(project_dir, CONFIG_FILE)
     if not os.path.exists(config_path):
         return []
@@ -117,6 +139,8 @@ def poll_telegram_feedback(project_dir: str) -> list[str]:
     bot_token = tg["bot_token"]
     chat_id = str(tg["chat_id"])
     last_update_id = tg.get("last_update_id", 0)
+    approved_senders: list[int] = tg.get("approved_senders", [])
+    pairing_code = str(tg.get("pairing_code", ""))
     offset = last_update_id + 1 if last_update_id else 0
 
     url = f"https://api.telegram.org/bot{bot_token}/getUpdates?offset={offset}"
@@ -138,6 +162,7 @@ def poll_telegram_feedback(project_dir: str) -> list[str]:
 
     new_tasks: list[str] = []
     max_update_id = last_update_id
+    config_changed = False
 
     tasks_list = config.setdefault("tasks", [])
 
@@ -149,19 +174,34 @@ def poll_telegram_feedback(project_dir: str) -> list[str]:
         message = update.get("message", {})
         msg_chat_id = str(message.get("chat", {}).get("id", ""))
         text = message.get("text", "").strip()
+        sender_id = message.get("from", {}).get("id")
 
-        if msg_chat_id != chat_id or not text:
+        if msg_chat_id != chat_id or not text or sender_id is None:
             continue
 
-        tasks_list.append({
-            "text": text,
-            "from": "telegram",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "done": False,
-        })
-        new_tasks.append(text)
+        if sender_id in approved_senders:
+            # Approved sender — process as task
+            tasks_list.append({
+                "text": text,
+                "from": "telegram",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "done": False,
+            })
+            new_tasks.append(text)
+        elif pairing_code and text == pairing_code:
+            # Pairing attempt — verify and approve
+            approved_senders.append(sender_id)
+            tg["approved_senders"] = approved_senders
+            # Generate a new code for future pairing
+            tg["pairing_code"] = str(random.randint(100000, 999999))
+            config_changed = True
+            _send_telegram_reply(
+                bot_token, msg_chat_id,
+                "Paired successfully. Your messages will now be processed.",
+            )
+        # else: unknown sender, wrong code — silently ignore
 
-    if max_update_id > last_update_id:
+    if max_update_id > last_update_id or config_changed:
         tg["last_update_id"] = max_update_id
         config["telegram"] = tg
         try:
@@ -181,6 +221,19 @@ def main() -> int:
         pass
 
     project_dir = get_project_dir()
+
+    # Agent mode delegation
+    if os.environ.get("AGENT_ROLE"):
+        agent_hook = os.path.join(os.path.dirname(__file__), "agent_session_start.py")
+        if os.path.exists(agent_hook):
+            result = subprocess.run(
+                [sys.executable, agent_hook],
+                capture_output=False,
+                timeout=10,
+                cwd=project_dir,
+            )
+            return result.returncode
+
     output_parts = []
 
     # 1. Environment summary

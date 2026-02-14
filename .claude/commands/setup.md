@@ -44,16 +44,26 @@ You are the `/setup` command. Walk the user through first-time project configura
     "enabled": false,
     "bot_token": "",
     "chat_id": "",
-    "last_update_id": 0
+    "last_update_id": 0,
+    "pairing_code": "",
+    "approved_senders": []
   },
   "tasks": []
 }
 ```
 
-4. Confirm setup is complete and summarize the saved config.
+4. If Telegram is enabled:
+   - Generate a 6-digit random pairing code (e.g., `random.randint(100000, 999999)` or equivalent)
+   - Store the code in `telegram.pairing_code`
+   - Initialize `telegram.approved_senders` as an empty array
+   - Display to user: "Send this code to your Telegram bot to pair: **<code>**"
+   - Inform user: "You can regenerate a new pairing code anytime by re-running `/setup`"
+
+5. Confirm setup is complete and summarize the saved config.
 
 ## Important
 - Create `.drive/` directory if it doesn't exist
 - Use `Write` tool to save the JSON config
 - If Telegram is enabled, validate that both bot_token and chat_id are non-empty
+- The pairing code must be a 6-digit integer (100000–999999)
 - Keep the conversation friendly but efficient — this should take under a minute

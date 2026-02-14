@@ -92,7 +92,9 @@ Enable during `/setup` or edit `.drive/config.json`:
     "enabled": true,
     "bot_token": "123456:ABC-DEF...",
     "chat_id": "your-chat-id",
-    "last_update_id": 0
+    "last_update_id": 0,
+    "pairing_code": "482916",
+    "approved_senders": []
   },
   "tasks": []
 }
@@ -118,9 +120,113 @@ Manage tasks during a session:
 
 View pending tasks, mark them done, dismiss, or poll for new messages.
 
+### Telegram Pairing
+
+Only approved senders can submit feedback. During `/setup`, a 6-digit pairing code is generated. Send this code as your first message to the bot to pair:
+
+1. Run `/setup` with Telegram enabled — note the pairing code
+2. Open your bot in Telegram and send the 6-digit code
+3. Bot replies "Paired successfully" — future messages are processed as tasks
+
+Manage pairing (view senders, regenerate code, revoke access):
+
+```
+/feedback → Manage pairing
+```
+
 ## Supported Languages
 
 Python (uv + ruff + pytest) · TypeScript (npm + eslint + vitest) · Rust (cargo + clippy)
+
+## Multi-Agent Mode
+
+Run multiple Claude Code instances in parallel, each with a specialized role (implementer, reviewer, docs, janitor), communicating via a git-synchronized task board.
+
+### Prerequisites
+
+**Docker runtime:**
+- Docker Desktop
+- `ANTHROPIC_API_KEY` environment variable
+
+**DevPod runtime:**
+- [DevPod CLI](https://devpod.sh) + cloud provider (AWS, GCP, Kubernetes)
+- `ANTHROPIC_API_KEY` environment variable
+- Git remote accessible from cloud VMs
+
+### Quick Start (Docker)
+
+```bash
+# Configure fleet in .drive/agents/config.json (default: 2 implementers + 1 reviewer + 1 docs)
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Launch agents
+scripts/run-agents.sh
+
+# Monitor
+scripts/agent-status.sh
+
+# Stop
+scripts/stop-agents.sh
+```
+
+### Quick Start (DevPod)
+
+```bash
+# Set runtime to devpod in .drive/agents/config.json
+# Set devpod.provider (e.g. "aws", "gcloud", "kubernetes")
+# Set sync.upstream_remote to a git URL (e.g. git@github.com:user/repo.git)
+export ANTHROPIC_API_KEY=sk-ant-...
+
+scripts/run-agents.sh
+```
+
+### Runtime Comparison
+
+| | Docker | DevPod |
+|---|---|---|
+| Where | Local machine | Cloud VM |
+| Cost | Free | Pay-per-use |
+| Scale | 3-5 agents | 20+ agents |
+| Sync | Volume mount | Git SSH/HTTPS |
+| Setup | `docker` CLI | `devpod` CLI + provider |
+
+### Monitoring
+
+Use the `/board` command in any Claude session to view tasks, messages, agent status, and manage locks. Or use the CLI scripts directly:
+
+```bash
+scripts/agent-status.sh          # Fleet overview
+python3 scripts/board.py list    # All tasks as JSON
+python3 scripts/lock.py list     # Active locks
+```
+
+### Cost Controls
+
+- `max_sessions` per role in config (default: 20)
+- Idle detection: 5 consecutive no-op sessions → agent exits
+- `scripts/stop-agents.sh` to halt all agents immediately
+
+### Security
+
+- API key passed via environment variable, never stored in files
+- Agent prompts are read from upstream (immutable to agents)
+- Board messages are treated as data, not executable instructions
+
+### DevPod Provider Examples
+
+```bash
+# AWS
+devpod provider add aws
+devpod provider use aws
+
+# Google Cloud
+devpod provider add gcloud
+devpod provider use gcloud
+
+# Kubernetes
+devpod provider add kubernetes
+devpod provider use kubernetes
+```
 
 ## Credits
 

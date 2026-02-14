@@ -139,12 +139,53 @@ On first use (no `.drive/config.json`), the session start hook prompts you to ru
 
 Users can send tasks/feedback to the Telegram bot between sessions. On next session start, `session_start.py` polls `getUpdates` and adds new messages to `config.tasks[]`. Use `/feedback` to view, work on, mark done, or dismiss tasks. Completed task count is included in session-end Telegram notifications.
 
+### Telegram Pairing
+
+Only approved senders can submit feedback via Telegram. During `/setup`, a 6-digit pairing code is generated and stored in `telegram.pairing_code`. The user must send this code as their first message to the bot. Once verified, their `user_id` is added to `telegram.approved_senders` and future messages are processed as tasks. Use `/feedback` → "Manage pairing" to view approved senders, regenerate the code, or revoke access.
+
 ## Session End Behavior
 
 The `session_end.py` Stop hook runs automatically when a session ends:
 1. **Auto-commit** — commits tracked file changes with a `wip: <summary>` message
 2. **Progress reminder** — warns if `.drive/claude-progress.txt` wasn't updated
 3. **Telegram notification** — sends a session summary if configured in `.drive/config.json` (includes completed task count)
+
+## Multi-Agent Mode
+
+Claude Drive can run multiple Claude Code instances in parallel, each with a specialized role.
+
+### Architecture
+- **Ralph-loop**: Each agent runs in an infinite cycle: clone → read board → claim task → work → commit → sync → repeat
+- **File-per-task board**: Tasks stored as individual JSON files in `.drive/agents/tasks/` to avoid git merge conflicts
+- **File-based locks**: `.drive/agents/locks/` with heartbeat-based staleness detection (2h default)
+- **Git sync**: Agents push/pull to shared upstream repo; push conflicts serve as natural lock arbitration
+
+### Runtimes
+
+| | Docker | DevPod |
+|---|---|---|
+| **Where** | Local machine | Cloud VM (AWS, GCP, K8s) |
+| **Cost** | Free | Pay-per-use |
+| **Scale** | 3-5 agents | 20+ agents |
+| **Setup** | Docker Desktop | `devpod` CLI + cloud provider |
+
+### Agent Roles
+- **implementer** — Claims tasks, writes code with TDD, runs tests, commits
+- **reviewer** — Reviews recent commits, posts messages for issues (never modifies source)
+- **docs** — Updates documentation based on recent changes
+- **janitor** — Scans for lint/quality issues, posts messages (never auto-fixes)
+
+### Commands
+- `scripts/run-agents.sh` — Launch the agent fleet
+- `scripts/stop-agents.sh` — Stop all agents
+- `scripts/agent-status.sh` — Show fleet status
+- `/board` — Interactive task board management
+
+### Agent Config
+Fleet configuration lives in `.drive/agents/config.json`. Set `runtime` to `docker` or `devpod`.
+
+### When Running as an Agent
+When `AGENT_ROLE` env var is set, `session_start.py` delegates to `agent_session_start.py` which injects board state and messages instead of the normal interactive init.
 
 ## Code Standards
 - Domain errors in core, technical errors in adapters
