@@ -37,8 +37,8 @@ trap on_exit EXIT
 validate_env() {
   local missing=0
 
-  if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "${HOME}/.claude/credentials.json" ]; then
-    log_error "No auth found: set ANTHROPIC_API_KEY or mount ~/.claude/credentials.json"
+  if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${ANTHROPIC_AUTH_TOKEN:-}" ] && [ ! -f "${HOME}/.claude/credentials.json" ]; then
+    log_error "No auth found: set ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, or mount ~/.claude/credentials.json"
     missing=1
   fi
 

@@ -83,6 +83,7 @@ def start_agent(
     upstream_path: Path,
     credentials_path: Path | None = None,
     api_key: str | None = None,
+    provider_env: dict[str, str] | None = None,
 ) -> dict:
     """Start a Docker container for an agent. Returns {container_id, status}."""
     validate_role_name(role)
@@ -118,6 +119,11 @@ def start_agent(
 
     if api_key:
         cmd.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"])
+
+    # Pass provider-specific env vars (e.g. for GLM-5 via Z.AI)
+    if provider_env:
+        for key, val in provider_env.items():
+            cmd.extend(["-e", f"{key}={val}"])
 
     cmd.extend([image, "bash", "/opt/claude-drive/scripts/entrypoint.sh"])
 

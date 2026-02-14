@@ -520,12 +520,56 @@ async def partial_config(request: Request):
 
 # ── Fleet state helpers ──────────────────────────────────
 
+# Env vars forwarded from host to agent containers
+_FORWARD_ENV_VARS = [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "API_TIMEOUT_MS",
+]
+
 
 def _load_config() -> dict:
     """Load agent config from .drive/agents/config.json."""
     if CONFIG_PATH.exists():
         return json.loads(CONFIG_PATH.read_text())
     return {}
+
+
+def _build_provider_env(config: dict) -> dict[str, str]:
+    """Build provider env vars from config.provider block + host environment.
+
+    Config example for GLM-5:
+      "provider": {
+        "base_url": "https://api.z.ai/api/anthropic",
+        "auth_token": "your-zai-key",
+        "default_model": "glm-5"
+      }
+    """
+    env: dict[str, str] = {}
+
+    # 1. Forward matching env vars from host
+    for key in _FORWARD_ENV_VARS:
+        val = os.environ.get(key)
+        if val:
+            env[key] = val
+
+    # 2. Override from config.provider block
+    provider = config.get("provider", {})
+    if provider.get("base_url"):
+        env["ANTHROPIC_BASE_URL"] = provider["base_url"]
+    if provider.get("auth_token"):
+        env["ANTHROPIC_AUTH_TOKEN"] = provider["auth_token"]
+    if provider.get("default_model"):
+        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = provider["default_model"]
+        env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = provider["default_model"]
+    if provider.get("timeout_ms"):
+        env["API_TIMEOUT_MS"] = str(provider["timeout_ms"])
+
+    return env
 
 
 def _reconstruct_fleet_state() -> None:
@@ -699,6 +743,9 @@ async def fleet_start():
         credentials_path = Path.home() / ".claude" / "credentials.json"
         api_key = os.environ.get("ANTHROPIC_API_KEY")
 
+        # Build provider env vars from config + host environment
+        provider_env = _build_provider_env(config)
+
         agents = []
         for role_cfg in config["roles"]:
             role = role_cfg["name"]
@@ -717,6 +764,7 @@ async def fleet_start():
                     upstream_path=upstream,
                     credentials_path=credentials_path,
                     api_key=api_key,
+                    provider_env=provider_env,
                 )
                 _fleet_state[agent_id] = {
                     "status": result["status"],
