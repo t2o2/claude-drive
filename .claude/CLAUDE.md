@@ -131,6 +131,21 @@ Rules:
 - Update only the `passes` field and `status` field during implementation
 - Never modify `name`, `description`, or `dod` without user approval
 
+## First-Run Setup
+
+On first use (no `.drive/config.json`), the session start hook prompts you to run `/setup`. This command interviews the user for project name, language, TDD strictness, and optional Telegram notifications, then saves config to `.drive/config.json`.
+
+## Telegram Feedback
+
+Users can send tasks/feedback to the Telegram bot between sessions. On next session start, `session_start.py` polls `getUpdates` and adds new messages to `config.tasks[]`. Use `/feedback` to view, work on, mark done, or dismiss tasks. Completed task count is included in session-end Telegram notifications.
+
+## Session End Behavior
+
+The `session_end.py` Stop hook runs automatically when a session ends:
+1. **Auto-commit** — commits tracked file changes with a `wip: <summary>` message
+2. **Progress reminder** — warns if `.drive/claude-progress.txt` wasn't updated
+3. **Telegram notification** — sends a session summary if configured in `.drive/config.json` (includes completed task count)
+
 ## Code Standards
 - Domain errors in core, technical errors in adapters
 - Constructor injection for dependencies

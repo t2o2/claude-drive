@@ -11,11 +11,14 @@ Input: JSON on stdin
 Output: Context injected to stdout, instructions to stderr
 """
 
+import json
 import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 
+CONFIG_FILE = ".drive/config.json"
 CONTINUATION_FILE = ".drive/sessions/continuation.md"
 PROGRESS_FILE = ".drive/claude-progress.txt"
 
@@ -95,6 +98,82 @@ def read_continuation(project_dir: str) -> str | None:
     return content if content else None
 
 
+def poll_telegram_feedback(project_dir: str) -> list[str]:
+    """Poll Telegram getUpdates for messages sent between sessions."""
+    config_path = os.path.join(project_dir, CONFIG_FILE)
+    if not os.path.exists(config_path):
+        return []
+
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
+
+    tg = config.get("telegram", {})
+    if not tg.get("enabled") or not tg.get("bot_token") or not tg.get("chat_id"):
+        return []
+
+    bot_token = tg["bot_token"]
+    chat_id = str(tg["chat_id"])
+    last_update_id = tg.get("last_update_id", 0)
+    offset = last_update_id + 1 if last_update_id else 0
+
+    url = f"https://api.telegram.org/bot{bot_token}/getUpdates?offset={offset}"
+    try:
+        result = subprocess.run(
+            ["curl", "-s", url],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+        data = json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
+        return []
+
+    if not data.get("ok") or not data.get("result"):
+        return []
+
+    new_tasks: list[str] = []
+    max_update_id = last_update_id
+
+    tasks_list = config.setdefault("tasks", [])
+
+    for update in data["result"]:
+        update_id = update.get("update_id", 0)
+        if update_id > max_update_id:
+            max_update_id = update_id
+
+        message = update.get("message", {})
+        msg_chat_id = str(message.get("chat", {}).get("id", ""))
+        text = message.get("text", "").strip()
+
+        if msg_chat_id != chat_id or not text:
+            continue
+
+        tasks_list.append({
+            "text": text,
+            "from": "telegram",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "done": False,
+        })
+        new_tasks.append(text)
+
+    if max_update_id > last_update_id:
+        tg["last_update_id"] = max_update_id
+        config["telegram"] = tg
+        try:
+            with open(config_path, "w") as f:
+                json.dump(config, f, indent=2)
+                f.write("\n")
+        except IOError:
+            pass
+
+    return new_tasks
+
+
 def main() -> int:
     try:
         sys.stdin.read()
@@ -124,8 +203,25 @@ def main() -> int:
             file=sys.stderr,
         )
 
+    # 4. Telegram feedback polling
+    new_tasks = poll_telegram_feedback(project_dir)
+    if new_tasks:
+        task_lines = "\n".join(f"- {t}" for t in new_tasks)
+        output_parts.append(
+            f"[TELEGRAM FEEDBACK] {len(new_tasks)} new task(s) from Telegram:\n{task_lines}"
+        )
+
     # Print all context to stdout
     print("\n\n".join(output_parts))
+
+    # 5. First-run detection
+    config_path = os.path.join(project_dir, CONFIG_FILE)
+    if not os.path.exists(config_path):
+        print(
+            "[FIRST RUN] No project config found. "
+            "Run /setup to configure Claude Drive for this project.",
+            file=sys.stderr,
+        )
 
     # Stderr instruction
     print(

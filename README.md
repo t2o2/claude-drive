@@ -19,6 +19,16 @@ Start a Claude Code session — everything activates automatically.
 
 ## Usage
 
+### First-Run Setup
+
+On first session, you'll be prompted to run:
+
+```
+/setup
+```
+
+This asks for project name, language, TDD strictness, and optional Telegram notifications. Config saves to `.drive/config.json`.
+
 ### Daily Work
 
 Work normally. The framework runs in the background:
@@ -67,6 +77,46 @@ rm .claude/rules/rust-rules.md         # if not using Rust
 Tune context thresholds in `.claude/hooks/context_monitor.py` (`MAX_EXCHANGES`).
 
 Tune lint timeout in `.claude/settings.json`.
+
+### Session End
+
+Sessions auto-commit tracked file changes with a `wip:` message and optionally notify via Telegram.
+
+### Telegram Notifications
+
+Enable during `/setup` or edit `.drive/config.json`:
+
+```json
+{
+  "telegram": {
+    "enabled": true,
+    "bot_token": "123456:ABC-DEF...",
+    "chat_id": "your-chat-id",
+    "last_update_id": 0
+  },
+  "tasks": []
+}
+```
+
+Get a bot token from [@BotFather](https://t.me/BotFather). Get your chat ID by messaging [@userinfobot](https://t.me/userinfobot).
+
+### Telegram Feedback
+
+Send messages to your bot between sessions — they appear as tasks on the next session start:
+
+```
+[TELEGRAM FEEDBACK] 2 new task(s) from Telegram:
+- Fix the login bug
+- Review PR #42
+```
+
+Manage tasks during a session:
+
+```
+/feedback
+```
+
+View pending tasks, mark them done, dismiss, or poll for new messages.
 
 ## Supported Languages
 
