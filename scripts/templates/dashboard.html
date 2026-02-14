@@ -867,11 +867,11 @@
         <p>Multi-Agent Orchestration</p>
       </div>
 
-      <div id="sidebar-stats" hx-get="/partials/stats" hx-trigger="every 5s" hx-swap="outerHTML">
+      <div id="sidebar-stats" hx-get="/partials/stats" hx-trigger="every 5s" hx-swap="innerHTML">
         {{ render_stats(stats) }}
       </div>
 
-      <div id="sidebar-fleet" hx-get="/partials/fleet" hx-trigger="every 3s" hx-swap="outerHTML">
+      <div id="sidebar-fleet" hx-get="/partials/fleet" hx-trigger="every 3s" hx-swap="innerHTML">
         {{ render_fleet(fleet) }}
       </div>
     </aside>
@@ -899,11 +899,11 @@
 
     <!-- Right Sidebar -->
     <aside class="right-sidebar">
-      <div id="agents-section" hx-get="/partials/agents" hx-trigger="every 5s" hx-swap="outerHTML">
+      <div id="agents-section" hx-get="/partials/agents" hx-trigger="every 5s" hx-swap="innerHTML">
         {{ render_agents(locks, agent_cards) }}
       </div>
 
-      <div id="messages-section" hx-get="/partials/messages" hx-trigger="every 5s" hx-swap="outerHTML">
+      <div id="messages-section" hx-get="/partials/messages" hx-trigger="every 5s" hx-swap="innerHTML">
         {{ render_messages(messages) }}
       </div>
     </aside>
