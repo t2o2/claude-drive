@@ -82,48 +82,81 @@
 </section>
 {% endmacro %}
 
-{% macro render_agents(locks) %}
+{% macro render_agents(locks, agent_cards) %}
 <section id="agents" hx-get="/partials/agents" hx-trigger="every 5s" hx-swap="outerHTML">
   <div style="display: flex; justify-content: space-between; align-items: center;">
-    <h4>Active Agents</h4>
+    <h4>Agents</h4>
     <button class="btn-small"
             hx-post="/locks/cleanup"
             hx-target="#agents"
             hx-swap="outerHTML">Cleanup Stale</button>
   </div>
-  {% if locks %}
+  {% if agent_cards %}
+  <div class="agent-grid">
+    {% for card in agent_cards %}
+    <article class="agent-card">
+      <div class="agent-card-header">
+        <strong>{{ card.agent_id }}</strong>
+        <span class="badge-role">{{ card.role }}</span>
+      </div>
+      {% if card.task_id %}
+      <div class="agent-task">Task: <code>{{ card.task_id[:8] }}</code></div>
+      {% endif %}
+      <div class="agent-meta">
+        <span>Status:
+          {% if card.status == "running" %}
+          <span class="badge-fresh">running</span>
+          {% elif card.orphaned_lock %}
+          <span class="badge-stale">orphaned lock</span>
+          {% else %}
+          <span class="badge-stale">{{ card.status }}</span>
+          {% endif %}
+        </span>
+        <span>Uptime: {{ card.uptime }}</span>
+        <span>Heartbeat: {{ card.heartbeat_ago }}</span>
+      </div>
+      {% if card.container_id %}
+      <div class="agent-actions">
+        <button class="btn-small btn-delete"
+                hx-post="/agents/{{ card.agent_id }}/stop"
+                hx-target="#agents"
+                hx-swap="outerHTML"
+                hx-confirm="Stop agent {{ card.agent_id }}?"
+                hx-disabled-elt="this"
+                hx-disable-elt="this">Stop</button>
+        <button class="btn-small btn-reopen"
+                hx-post="/agents/{{ card.agent_id }}/restart"
+                hx-target="#agents"
+                hx-swap="outerHTML"
+                hx-confirm="Restart agent {{ card.agent_id }}?"
+                hx-disabled-elt="this"
+                hx-disable-elt="this">Restart</button>
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% elif locks %}
+  <p class="empty-col">No fleet containers — showing lock data only</p>
   <figure>
     <table>
       <thead>
-        <tr>
-          <th>Agent</th>
-          <th>Task</th>
-          <th>Acquired</th>
-          <th>Heartbeat</th>
-          <th>Status</th>
-        </tr>
+        <tr><th>Agent</th><th>Task</th><th>Heartbeat</th><th>Status</th></tr>
       </thead>
       <tbody>
         {% for lk in locks %}
         <tr>
           <td>{{ lk.agent_id }}</td>
           <td><code>{{ lk.task_id }}</code></td>
-          <td>{{ lk.acquired_ago }}</td>
           <td>{{ lk.heartbeat_ago }}</td>
-          <td>
-            {% if lk.fresh %}
-            <span class="badge-fresh">Fresh</span>
-            {% else %}
-            <span class="badge-stale">Stale</span>
-            {% endif %}
-          </td>
+          <td>{% if lk.fresh %}<span class="badge-fresh">Fresh</span>{% else %}<span class="badge-stale">Stale</span>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </figure>
   {% else %}
-  <p class="empty-col">No active locks</p>
+  <p class="empty-col">No active agents</p>
   {% endif %}
 </section>
 {% endmacro %}
@@ -147,16 +180,80 @@
 </section>
 {% endmacro %}
 
+{% macro render_fleet(fleet) %}
+<section id="fleet" hx-get="/partials/fleet" hx-trigger="every 3s" hx-swap="outerHTML">
+  {% if fleet.runtime == "devpod" %}
+  <div class="fleet-banner fleet-devpod">
+    <strong>DevPod runtime detected.</strong> Use <code>scripts/run-agents.sh</code> for fleet management.
+  </div>
+  {% else %}
+  <div class="fleet-controls">
+    <div class="fleet-status">
+      {% if fleet.fleet_status == "running" %}
+      <span class="fleet-indicator fleet-running"></span> <strong>Running</strong> ({{ fleet.fleet_count }} agents)
+      {% else %}
+      <span class="fleet-indicator fleet-stopped"></span> <strong>Stopped</strong>
+      {% endif %}
+    </div>
+    <div class="fleet-buttons">
+      {% if fleet.fleet_status != "running" %}
+      <button class="btn-fleet btn-start"
+              hx-post="/fleet/start"
+              hx-target="#fleet"
+              hx-swap="outerHTML"
+              hx-confirm="Start the agent fleet?"
+              {% if fleet.open_tasks == 0 %}disabled{% endif %}>Start Fleet</button>
+      {% endif %}
+      {% if fleet.fleet_status == "running" %}
+      <button class="btn-fleet btn-stop"
+              hx-post="/fleet/stop"
+              hx-target="#fleet"
+              hx-swap="outerHTML"
+              hx-confirm="Stop all agents?">Stop Fleet</button>
+      {% endif %}
+    </div>
+  </div>
+  {% if fleet.open_tasks == 0 and fleet.fleet_status != "running" %}
+  <div class="fleet-warning">
+    No open tasks on the board. Add tasks before starting the fleet.
+  </div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endmacro %}
+
+{% macro render_config(config, config_errors) %}
+<section id="config" hx-get="/partials/config" hx-trigger="every 10s" hx-swap="outerHTML">
+  <h4>Configuration</h4>
+  <form hx-post="/config" hx-target="#config" hx-swap="outerHTML">
+    <textarea name="config_json" rows="20"
+              style="font-family: monospace; font-size: 0.8rem;">{{ config | tojson(indent=2) }}</textarea>
+    {% if config_errors %}
+    <div class="config-errors">
+      {% for err in config_errors %}
+      <p class="error-text">{{ err }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <button type="submit" class="btn-small">Save Config</button>
+  </form>
+</section>
+{% endmacro %}
+
 {# ── Rendering ─────────────────────────────────────── #}
 
-{% if partial == "stats" %}
+{% if partial == "fleet" %}
+  {{ render_fleet(fleet) }}
+{% elif partial == "stats" %}
   {{ render_stats(stats) }}
 {% elif partial == "board" %}
   {{ render_board(groups) }}
 {% elif partial == "agents" %}
-  {{ render_agents(locks) }}
+  {{ render_agents(locks, agent_cards) }}
 {% elif partial == "messages" %}
   {{ render_messages(messages) }}
+{% elif partial == "config" %}
+  {{ render_config(config, config_errors) }}
 {% else %}
 <!doctype html>
 <html lang="en" data-theme="dark">
@@ -271,6 +368,98 @@
     .msg-time { float: right; opacity: 0.5; font-size: 0.75rem; }
     .msg-text { margin: 0.25rem 0 0; font-size: 0.85rem; opacity: 0.85; }
 
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+    .agent-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+    .agent-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .badge-role {
+      font-size: 0.7rem;
+      background: #333;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .agent-task { font-size: 0.85rem; margin-bottom: 0.4rem; }
+    .agent-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.5rem;
+    }
+    .agent-actions { display: flex; gap: 0.25rem; }
+
+    .config-errors { margin-top: 0.5rem; }
+    .error-text { color: #f44336; font-size: 0.85rem; margin: 0.2rem 0; }
+
+    .fleet-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    .fleet-status { display: flex; align-items: center; gap: 0.5rem; }
+    .fleet-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .fleet-running { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+    .fleet-stopped { background: #666; }
+    .fleet-buttons { display: flex; gap: 0.5rem; }
+    .btn-fleet {
+      font-size: 0.85rem;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-fleet:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-start { color: #4caf50; border-color: #4caf50; }
+    .btn-start:hover:not(:disabled) { background: #4caf50; color: #fff; }
+    .btn-stop { color: #f44336; border-color: #f44336; }
+    .btn-stop:hover { background: #f44336; color: #fff; }
+    .fleet-warning {
+      background: #332b00;
+      border: 1px solid #ff9800;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      color: #ff9800;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    .fleet-devpod {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+
     @media (max-width: 900px) {
       .stats-grid { grid-template-columns: repeat(3, 1fr); }
       .kanban { grid-template-columns: repeat(2, 1fr); }
@@ -289,6 +478,7 @@
 
   <main>
     {{ render_stats(stats) }}
+    {{ render_fleet(fleet) }}
 
     <form class="add-form" hx-post="/tasks" hx-target="#board" hx-swap="outerHTML">
       <input type="text" name="description" placeholder="New task description..." required>
@@ -301,8 +491,9 @@
     </form>
 
     {{ render_board(groups) }}
-    {{ render_agents(locks) }}
+    {{ render_agents(locks, agent_cards) }}
     {{ render_messages(messages) }}
+    {{ render_config(config, config_errors) }}
   </main>
 </body>
 </html>

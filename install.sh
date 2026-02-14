@@ -92,6 +92,7 @@ FILES=(
   scripts/agent-status.sh
   scripts/entrypoint.sh
   scripts/smoke-test.sh
+  scripts/orchestrator.py
   scripts/dashboard.py
   scripts/templates/dashboard.html
 )

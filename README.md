@@ -94,21 +94,24 @@ Run multiple Claude Code instances in parallel, each with a specialized role, co
 cd your-project
 curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/install.sh | bash
 
-# 2. (Optional) Edit fleet config — defaults to 2 implementers + 1 reviewer + 1 docs
-#    Edit .drive/agents/config.json to change roles, counts, or model
+# 2. Start the dashboard
+uv run scripts/dashboard.py
 
-# 3. Add tasks to the board
+# 3. Open http://localhost:8000 — add tasks, configure fleet, click Start Fleet
+```
+
+Or via CLI:
+
+```bash
+# Add tasks
 python3 scripts/board.py add "Implement user authentication" --priority 1
 python3 scripts/board.py add "Add input validation to API endpoints" --priority 2
-python3 scripts/board.py add "Write integration tests for payment flow" --priority 3
 
-# 4. Launch agents
+# Launch agents
 scripts/run-agents.sh
 
-# 5. Monitor
+# Monitor & stop
 scripts/agent-status.sh
-
-# 6. Stop
 scripts/stop-agents.sh
 ```
 
@@ -161,22 +164,37 @@ Or use the interactive `/board` command inside any Claude session.
 
 ### Dashboard
 
-A web UI for monitoring agents and managing tasks:
+The web dashboard is the central control plane for the multi-agent system:
 
 ```bash
-uv run scripts/dashboard.py          # Start on http://localhost:8000
+uv run scripts/dashboard.py          # Start on http://127.0.0.1:8000
 ```
 
-Features:
-- Kanban board with Open, In Progress, Done, Failed columns
-- Add/delete/reopen tasks from the browser
-- Agent activity with heartbeat freshness
-- Inter-agent messages feed
-- Auto-refreshing via htmx (no manual reload)
+Open `http://localhost:8000` to access:
 
-### Monitoring
+- **Fleet controls** — Start/stop the entire fleet with preflight checks
+- **Agent cards** — Per-agent status, stop, restart, and live log viewer
+- **Kanban board** — Open, In Progress, Done, Failed columns
+- **Task management** — Add/delete/reopen tasks from the browser
+- **Config editor** — Edit fleet config with validation and backup
+- **Health monitor** — Auto-detects crashed containers and restarts (up to 3x)
+- **Auto-refresh** — All sections poll via htmx (no manual reload)
+
+The dashboard binds to `127.0.0.1` by default. For LAN access:
 
 ```bash
+uv run scripts/dashboard.py --host 0.0.0.0 --port 8000
+```
+
+> **Security note:** There is no authentication in v1. Binding to `0.0.0.0` exposes the dashboard to your network.
+
+### CLI Fallback
+
+The shell scripts remain available as a CLI alternative:
+
+```bash
+scripts/run-agents.sh                # Launch the agent fleet
+scripts/stop-agents.sh               # Stop all agents
 scripts/agent-status.sh              # Fleet overview + last 5 log lines per agent
 python3 scripts/board.py list        # Task status
 python3 scripts/lock.py list         # Who's working on what
