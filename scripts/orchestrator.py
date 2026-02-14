@@ -270,6 +270,35 @@ def list_agent_branches(upstream_path: Path) -> list[dict]:
     return branches
 
 
+def sync_branches_to_origin(upstream_path: Path, project_root: Path) -> int:
+    """Push all agent/* branches from upstream bare repo to origin.
+
+    Returns count of branches pushed. The host repo has origin credentials,
+    so we fetch from the bare upstream into the host repo, then push to origin.
+    """
+    branches = list_agent_branches(upstream_path)
+    pushed = 0
+    for b in branches:
+        branch = b["branch"]
+        if b["ahead"] == 0:
+            continue
+        # Fetch branch from bare upstream into host repo
+        fetch_result = _run(
+            ["git", "-C", str(project_root), "fetch", str(upstream_path),
+             f"{branch}:{branch}", "--force"],
+        )
+        if fetch_result.returncode != 0:
+            continue
+        # Push to origin
+        push_result = _run(
+            ["git", "-C", str(project_root), "push", "origin", f"{branch}:{branch}", "--force"],
+            timeout=60,
+        )
+        if push_result.returncode == 0:
+            pushed += 1
+    return pushed
+
+
 def merge_agent_branch(
     upstream_path: Path, branch: str, project_root: Path
 ) -> dict:
@@ -277,10 +306,10 @@ def merge_agent_branch(
     if not branch.startswith("agent/"):
         return {"success": False, "message": f"Invalid branch: {branch}", "conflicts": []}
 
-    # Work in the project repo, not the bare upstream
-    # First fetch the branch from upstream
+    # Fetch the branch from upstream bare repo into host repo
     result = _run(
-        ["git", "-C", str(project_root), "fetch", str(upstream_path), f"{branch}:{branch}"],
+        ["git", "-C", str(project_root), "fetch", str(upstream_path),
+         f"{branch}:{branch}", "--force"],
     )
     if result.returncode != 0:
         return {"success": False, "message": f"Failed to fetch {branch}: {result.stderr}", "conflicts": []}
@@ -296,22 +325,16 @@ def merge_agent_branch(
             ["git", "-C", str(project_root), "diff", "--name-only", "--diff-filter=U"],
         )
         conflicts = [f.strip() for f in conflicts_result.stdout.strip().split("\n") if f.strip()]
-        # Abort the merge
         _run(["git", "-C", str(project_root), "merge", "--abort"])
         return {"success": False, "message": "Merge conflicts", "conflicts": conflicts}
 
-    # Push merged main back to upstream
-    _run(
-        ["git", "-C", str(project_root), "push", str(upstream_path), "HEAD:main"],
-    )
+    # Push merged main to both upstream and origin
+    _run(["git", "-C", str(project_root), "push", str(upstream_path), "HEAD:main"])
+    _run(["git", "-C", str(project_root), "push", "origin", "main"], timeout=60)
 
-    # Delete the agent branch from upstream (cleaned up)
-    _run(
-        ["git", "-C", str(upstream_path), "branch", "-D", branch],
-    )
-    # Delete local tracking branch
-    _run(
-        ["git", "-C", str(project_root), "branch", "-d", branch],
-    )
+    # Delete the agent branch everywhere
+    _run(["git", "-C", str(upstream_path), "branch", "-D", branch])
+    _run(["git", "-C", str(project_root), "branch", "-d", branch])
+    _run(["git", "-C", str(project_root), "push", "origin", "--delete", branch], timeout=60)
 
-    return {"success": True, "message": f"Merged {branch} into main", "conflicts": []}
+    return {"success": True, "message": f"Merged {branch} into main and pushed to origin", "conflicts": []}

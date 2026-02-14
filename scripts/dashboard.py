@@ -844,11 +844,13 @@ async def agent_restart(agent_id: str):
 
 @app.get("/partials/branches", response_class=HTMLResponse)
 async def partials_branches(request: Request):
-    """Return branches partial with agent branch list."""
+    """Return branches partial. Also syncs agent branches to origin."""
     config = _load_config()
     upstream = PROJECT_ROOT / config.get("sync", {}).get(
         "upstream_path", ".drive/upstream"
     )
+    # Push agent branches to origin so the host can review them on GitHub
+    orchestrator.sync_branches_to_origin(upstream, PROJECT_ROOT)
     branches = orchestrator.list_agent_branches(upstream)
     return _render(request, "branches", branches=branches)
 
