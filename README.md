@@ -1,4 +1,4 @@
-# Long-Running Claude Code Framework
+# Claude Drive
 
 A battle-tested framework for running long, autonomous Claude Code sessions without losing context or progress. Built on patterns from Anthropic's engineering articles on building a C compiler across 2000 sessions and effective harnesses for long-running agents.
 

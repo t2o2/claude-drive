@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Claude Drive — Long-running Claude Code framework
+# Claude Drive — Framework for long-running Claude Code sessions
 # Install: curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/install.sh | bash
 
 REPO="t2o2/claude-drive"
@@ -97,7 +97,7 @@ fi
 
 # --- Done ---
 
-printf "\n${BOLD}${GREEN}Claude Drive installed successfully!${RESET}\n\n"
+printf "\n${BOLD}${GREEN}Claude Drive installed!${RESET}\n\n"
 printf "  Start a Claude Code session to activate the framework.\n"
 printf "  Edit ${BOLD}.claude/CLAUDE.md${RESET} to customize for your project.\n\n"
 printf "  Optional cleanup — remove unused language rules:\n"
