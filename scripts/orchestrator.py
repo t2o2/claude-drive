@@ -114,7 +114,7 @@ def start_agent(
     ]
 
     if credentials_path and credentials_path.exists():
-        cmd.extend(["-v", f"{credentials_path}:/root/.claude/credentials.json:ro"])
+        cmd.extend(["-v", f"{credentials_path}:/home/claude/.claude/credentials.json:ro"])
 
     if api_key:
         cmd.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"])
