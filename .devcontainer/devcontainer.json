@@ -1,0 +1,32 @@
+{
+  "name": "claude-agent",
+  "image": "python:3.12-slim",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installCurl": true
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "postCreateCommand": "npm install -g @anthropic-ai/claude-code",
+  "onCreateCommand": "echo 'Clone handled by entrypoint.sh'",
+  "remoteUser": "root",
+  "containerEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "AGENT_ROLE": "${localEnv:AGENT_ROLE}",
+    "AGENT_ID": "${localEnv:AGENT_ID}",
+    "AGENT_MODEL": "${localEnv:AGENT_MODEL}",
+    "UPSTREAM_REMOTE": "${localEnv:UPSTREAM_REMOTE}",
+    "MAX_SESSIONS": "${localEnv:MAX_SESSIONS}"
+  },
+  "remoteEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "AGENT_ROLE": "${localEnv:AGENT_ROLE}",
+    "AGENT_ID": "${localEnv:AGENT_ID}",
+    "AGENT_MODEL": "${localEnv:AGENT_MODEL}",
+    "UPSTREAM_REMOTE": "${localEnv:UPSTREAM_REMOTE}",
+    "MAX_SESSIONS": "${localEnv:MAX_SESSIONS}"
+  }
+}
