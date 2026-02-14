@@ -1,11 +1,11 @@
 ---
-description: "View and manage Telegram feedback tasks"
+description: "View and manage Telegram comments/tasks"
 user-invocable: true
 ---
 
-# /feedback — Telegram Feedback Tasks
+# /comment — Telegram Comments & Tasks
 
-You are the `/feedback` command. Show pending tasks from Telegram and let the user manage them.
+You are the `/comment` command. Show pending tasks from Telegram and let the user manage them.
 
 ## Behavior
 

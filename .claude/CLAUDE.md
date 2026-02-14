@@ -137,11 +137,11 @@ On first use (no `.drive/config.json`), the session start hook prompts you to ru
 
 ## Telegram Feedback
 
-Users can send tasks/feedback to the Telegram bot between sessions. On next session start, `session_start.py` polls `getUpdates` and adds new messages to `config.tasks[]`. Use `/feedback` to view, work on, mark done, or dismiss tasks. Completed task count is included in session-end Telegram notifications.
+Users can send tasks/feedback to the Telegram bot between sessions. On next session start, `session_start.py` polls `getUpdates` and adds new messages to `config.tasks[]`. Use `/comment` to view, work on, mark done, or dismiss tasks. Completed task count is included in session-end Telegram notifications.
 
 ### Telegram Pairing
 
-Only approved senders can submit feedback via Telegram. During `/setup`, a 6-digit pairing code is generated and stored in `telegram.pairing_code`. The user must send this code as their first message to the bot. Once verified, their `user_id` is added to `telegram.approved_senders` and future messages are processed as tasks. Use `/feedback` → "Manage pairing" to view approved senders, regenerate the code, or revoke access.
+Only approved senders can submit feedback via Telegram. During `/setup`, a 6-digit pairing code is generated and stored in `telegram.pairing_code`. The user must send this code as their first message to the bot. Once verified, their `user_id` is added to `telegram.approved_senders` and future messages are processed as tasks. Use `/comment` → "Manage pairing" to view approved senders, regenerate the code, or revoke access.
 
 ## Session End Behavior
 

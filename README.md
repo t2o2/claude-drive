@@ -115,7 +115,7 @@ Send messages to your bot between sessions — they appear as tasks on the next 
 Manage tasks during a session:
 
 ```
-/feedback
+/comment
 ```
 
 View pending tasks, mark them done, dismiss, or poll for new messages.
@@ -131,7 +131,7 @@ Only approved senders can submit feedback. During `/setup`, a 6-digit pairing co
 Manage pairing (view senders, regenerate code, revoke access):
 
 ```
-/feedback → Manage pairing
+/comment → Manage pairing
 ```
 
 ## Supported Languages
