@@ -16,10 +16,18 @@ This framework fixes all of that.
 
 ## Quick Start
 
-1. Copy the `.claude/` directory into your project root
-2. Create the `.drive/` directory: `mkdir -p .drive/sessions`
-3. Add `.drive/` to your `.gitignore`
-4. Start a Claude Code session — the hooks activate automatically
+```bash
+cd your-project
+curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/install.sh | bash
+```
+
+This downloads the framework into `.claude/`, creates the `.drive/` runtime directory, and updates your `.gitignore`. Start a Claude Code session — the hooks activate automatically.
+
+To overwrite an existing installation:
+
+```bash
+FORCE=1 curl -fsSL https://raw.githubusercontent.com/t2o2/claude-drive/main/install.sh | bash
+```
 
 ## How It Works
 
