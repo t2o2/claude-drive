@@ -35,20 +35,34 @@ printf "\n${BOLD}Installing Claude Drive framework...${RESET}\n\n"
 # --- File manifest ---
 # Each line: <local_path>
 FILES=(
+  # Core config
   .claude/CLAUDE.md
   .claude/settings.json
+
+  # Hooks
   .claude/hooks/session_start.py
+  .claude/hooks/session_end.py
+  .claude/hooks/agent_session_start.py
   .claude/hooks/file_checker.py
   .claude/hooks/context_monitor.py
   .claude/hooks/tdd_enforcer.py
+
+  # Commands
+  .claude/commands/setup.md
+  .claude/commands/comment.md
+  .claude/commands/board.md
   .claude/commands/spec.md
   .claude/commands/spec-plan.md
   .claude/commands/spec-implement.md
   .claude/commands/spec-verify.md
+
+  # Spec agents
   .claude/agents/plan-verifier.md
   .claude/agents/plan-challenger.md
   .claude/agents/spec-reviewer-compliance.md
   .claude/agents/spec-reviewer-quality.md
+
+  # Rules
   .claude/rules/coding-standards.md
   .claude/rules/context-continuation.md
   .claude/rules/tdd-enforcement.md
@@ -57,6 +71,27 @@ FILES=(
   .claude/rules/python-rules.md
   .claude/rules/typescript-rules.md
   .claude/rules/rust-rules.md
+
+  # Multi-agent: devcontainer
+  .devcontainer/Dockerfile
+  .devcontainer/devcontainer.json
+
+  # Multi-agent: role prompts
+  .drive/agents/config.json
+  .drive/agents/roles/implementer.md
+  .drive/agents/roles/reviewer.md
+  .drive/agents/roles/docs.md
+  .drive/agents/roles/janitor.md
+
+  # Multi-agent: scripts
+  scripts/board.py
+  scripts/lock.py
+  scripts/validate_agent_config.py
+  scripts/run-agents.sh
+  scripts/stop-agents.sh
+  scripts/agent-status.sh
+  scripts/entrypoint.sh
+  scripts/smoke-test.sh
 )
 
 # --- Download files ---
@@ -71,28 +106,59 @@ for file in "${FILES[@]}"; do
   fi
 done
 
-# Make hooks executable
+# Make hooks and scripts executable
 chmod +x .claude/hooks/*.py 2>/dev/null || true
+chmod +x scripts/*.sh 2>/dev/null || true
 
 # --- Create runtime directories ---
 
 mkdir -p .drive/sessions
+mkdir -p .drive/agents/tasks
+mkdir -p .drive/agents/locks
+mkdir -p .drive/agents/logs
+mkdir -p .drive/agents/messages
 mkdir -p docs/plans
-info ".drive/ runtime directory created"
+info ".drive/ runtime directories created"
 info "docs/plans/ plan directory created"
 
 # --- Update .gitignore ---
 
-if [ -f ".gitignore" ]; then
-  if ! grep -qxF ".drive/" .gitignore 2>/dev/null; then
-    printf "\n.drive/\n" >> .gitignore
-    info "Added .drive/ to existing .gitignore"
-  else
-    info ".drive/ already in .gitignore"
+GITIGNORE_ENTRIES=(
+  ".drive/config.json"
+  ".drive/claude-progress.txt"
+  ".drive/sessions/"
+  ".drive/upstream/"
+  ".drive/test-output.log"
+  ".drive/lint-output.log"
+  ".drive/agents/tasks/"
+  ".drive/agents/locks/"
+  ".drive/agents/logs/"
+  ".drive/agents/messages/"
+  ".drive/agents/board-meta.json"
+  "__pycache__/"
+)
+
+if [ ! -f ".gitignore" ]; then
+  touch .gitignore
+fi
+
+# Remove legacy blanket .drive/ ignore if present
+if grep -qxF ".drive/" .gitignore 2>/dev/null; then
+  sed -i.bak '/^\.drive\/$/d' .gitignore && rm -f .gitignore.bak
+  info "Removed legacy blanket .drive/ from .gitignore"
+fi
+
+added=0
+for entry in "${GITIGNORE_ENTRIES[@]}"; do
+  if ! grep -qxF "$entry" .gitignore 2>/dev/null; then
+    echo "$entry" >> .gitignore
+    added=$((added + 1))
   fi
+done
+if [ "$added" -gt 0 ]; then
+  info "Added $added entries to .gitignore"
 else
-  printf ".drive/\n" > .gitignore
-  info "Created .gitignore with .drive/"
+  info ".gitignore already up to date"
 fi
 
 # --- Done ---
@@ -104,3 +170,6 @@ printf "  Optional cleanup — remove unused language rules:\n"
 printf "    rm .claude/rules/python-rules.md\n"
 printf "    rm .claude/rules/typescript-rules.md\n"
 printf "    rm .claude/rules/rust-rules.md\n\n"
+printf "  Multi-agent mode:\n"
+printf "    Edit ${BOLD}.drive/agents/config.json${RESET} to configure the fleet.\n"
+printf "    Run ${BOLD}scripts/run-agents.sh${RESET} to launch agents.\n\n"

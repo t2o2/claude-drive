@@ -1,2 +1,16 @@
-.drive/
+# Runtime data (user-specific, not transferable)
+.drive/config.json
+.drive/claude-progress.txt
+.drive/sessions/
+.drive/upstream/
+.drive/test-output.log
+.drive/lint-output.log
+
+# Agent runtime data
+.drive/agents/tasks/
+.drive/agents/locks/
+.drive/agents/logs/
+.drive/agents/messages/
+.drive/agents/board-meta.json
+
 __pycache__/
