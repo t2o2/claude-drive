@@ -723,8 +723,10 @@
       display: flex;
       flex-direction: column;
       gap: 20px;
-      max-height: 100vh;
-      overflow-y: auto;
+      height: calc(100vh - 48px);
+      position: sticky;
+      top: 24px;
+      overflow: hidden;
     }
 
     .card {
@@ -733,6 +735,9 @@
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 16px;
       padding: 20px;
+      min-height: 0;
+      flex-shrink: 1;
+      overflow: hidden;
     }
 
     .card-header {
@@ -761,6 +766,8 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      max-height: 240px;
+      overflow-y: auto;
     }
 
     .agent-item {
@@ -830,7 +837,7 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
-      max-height: 400px;
+      max-height: 200px;
       overflow-y: auto;
     }
 
@@ -882,6 +889,8 @@
       flex-direction: column;
       gap: 8px;
       padding: 12px;
+      max-height: 200px;
+      overflow-y: auto;
     }
 
     .branch-item {
