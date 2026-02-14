@@ -80,7 +80,10 @@
       {% if groups[status] %}
         {% for task in groups[status] %}
         <div class="task-card {{ status }}">
-          <div class="task-priority">P{{ task.priority }} - {% if task.priority == 1 %}High{% elif task.priority == 2 %}Medium{% else %}Low{% endif %}</div>
+          <div class="task-card-header">
+            <div class="task-priority">P{{ task.priority }} - {% if task.priority == 1 %}High{% elif task.priority == 2 %}Medium{% else %}Low{% endif %}</div>
+            <code class="task-id">#{{ task.id[:8] }}</code>
+          </div>
           <div class="task-title">{{ task.description }}</div>
           {% if task.locked_by %}
           <div class="task-meta">
@@ -609,6 +612,22 @@
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     }
 
+    .task-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .task-id {
+      font-size: 11px;
+      color: #6b7280;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
     .task-priority {
       display: inline-block;
       background: rgba(102, 126, 234, 0.15);
@@ -617,7 +636,6 @@
       border-radius: 6px;
       font-size: 11px;
       font-weight: 600;
-      margin-bottom: 10px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
