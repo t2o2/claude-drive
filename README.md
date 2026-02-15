@@ -42,15 +42,13 @@ For complex features (5+ files, new architecture):
 /spec "Add user authentication"
 ```
 
-Three phases: **Plan** (JSON plan + dual-agent review) → **Implement** (TDD per task + production validation) → **Verify** (compliance + quality review).
-
-### Enhanced Workflow (v2)
-
-The enhanced spec workflow includes production validation gates:
+Three phases with **production validation gates**:
 
 1. **Plan** - Create detailed plan with test strategy and validation criteria
 2. **Implement** - TDD cycles + framework gotcha checks + production validator
 3. **Verify** - Dual-agent review + full test suite + production smoke tests
+
+The implementation phase now includes automatic production validation. Tests passing is not enough—the system must actually work in a production-like environment before marking complete.
 
 See [Production Validation Framework](docs/PRODUCTION_VALIDATION.md) for details.
 
@@ -64,8 +62,7 @@ claude-drive/
 │   ├── setup.md
 │   ├── spec.md
 │   ├── spec-plan.md
-│   ├── spec-implement.md
-│   ├── spec-implement-v2.md         # NEW: With production validation
+│   ├── spec-implement.md            # Includes production validation
 │   ├── spec-verify.md
 │   └── comment.md
 ├── docs/                    # Documentation

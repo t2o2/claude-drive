@@ -42,13 +42,13 @@ In the plan, add:
 
 ### 2. Implement with Validation Gates
 
-```bash
-# Will automatically:
-# 1. Run TDD cycles
-# 2. Check framework gotchas
-# 3. Run production validator
-# 4. Only mark complete if ALL gates pass
-```
+When you run `/spec`, implementation now **automatically** includes:
+1. TDD cycles (RED-GREEN-REFACTOR)
+2. Framework gotcha checks
+3. Production validator
+4. Only marks complete if ALL gates pass
+
+No extra commands needed—it's the default behavior.
 
 ### 3. Verify Production Works
 
@@ -162,13 +162,13 @@ Should be: send_from_directory(str(Path("frontend/dist").absolute()), ...)
 
 ## Integration with Workflow
 
-### Standard TDD
+### Old TDD (without validation)
 
 ```
 Write test → Implement → Tests pass → DONE
 ```
 
-### Enhanced TDD (v2)
+### New TDD (with production validation - now default)
 
 ```
 Write test → Implement → Tests pass → Check gotchas → Validate production → DONE
@@ -188,7 +188,7 @@ A: After 3 attempts, validator escalates to user. Check the error output against
 
 ### Q: Can I skip validation for simple changes?
 
-A: Original spec-implement.md still available for backward compatibility. But validation takes <1 minute and prevents hours of debugging.
+A: Production validation is now the default and takes <1 minute. It prevents hours of debugging, so it's recommended for all changes. If absolutely needed, you can temporarily revert spec-implement.md from git history.
 
 ### Q: Does this replace manual testing?
 

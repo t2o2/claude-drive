@@ -90,14 +90,16 @@ Detection: Check for relative paths in send_from_directory
 
 ### 4. Enhanced Implementation Command
 
-**File:** `commands/spec-implement-v2.md`
+**File:** `commands/spec-implement.md`
 
-**Changes:**
+**Changes from original:**
 - After tests pass, run framework gotcha checks
 - Launch production-validator agent
 - Only mark COMPLETE if validation passes
 - Maximum 3 validation attempts
 - Escalate to user if still failing
+
+**Note:** Production validation is now the default. All `/spec` implementations include this gate.
 
 ## Usage
 
@@ -239,26 +241,26 @@ input:
 
 ## Integration with Existing Workflow
 
-### Before (Original)
+### Before
 
 ```
 spec-plan → spec-implement → spec-verify
             (TDD only)        (code review)
 ```
 
-### After (Enhanced)
+### Now (Default)
 
 ```
 spec-plan → spec-implement → spec-verify
 (+ gotchas) (+ prod validate) (+ production evidence)
 ```
 
-### Backward Compatible
+### Migration
 
-- Original workflow still works
-- Enhancements are additive
-- Opt-in via spec-implement-v2.md
-- Can gradually adopt features
+- Production validation is now the default for all `/spec` implementations
+- Enhancements are additive (existing plans still work)
+- No action required from users
+- If issues arise, can revert from git history
 
 ## Metrics
 
@@ -332,4 +334,4 @@ Validation failed: send_from_directory returned 404
 - `agents/production-validator.md` - Validator agent definition
 - `agents/framework-gotchas.md` - Gotchas database
 - `agents/plan-template-enhanced.md` - Enhanced plan structure
-- `commands/spec-implement-v2.md` - Implementation with validation
+- `commands/spec-implement.md` - Implementation with validation (now default)
