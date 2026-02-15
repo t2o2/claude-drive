@@ -1,0 +1,15 @@
+{
+  "name": "Claude Drive",
+  "description": "Plugins for long-running Claude Code sessions",
+  "owner": {
+    "name": "t2o2"
+  },
+  "plugins": [
+    {
+      "name": "claude-drive",
+      "description": "Progress tracking, context continuity, TDD enforcement, and spec workflows",
+      "source": ".",
+      "version": "1.0.0"
+    }
+  ]
+}
