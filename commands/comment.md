@@ -1,5 +1,5 @@
 ---
-description: "View and manage Telegram comments/tasks"
+description: "View and manage feedback tasks"
 user-invocable: true
 ---
 
