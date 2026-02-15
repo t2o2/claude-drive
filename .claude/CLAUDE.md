@@ -150,43 +150,6 @@ The `session_end.py` Stop hook runs automatically when a session ends:
 2. **Progress reminder** — warns if `.drive/claude-progress.txt` wasn't updated
 3. **Telegram notification** — sends a session summary if configured in `.drive/config.json` (includes completed task count)
 
-## Multi-Agent Mode
-
-Claude Drive can run multiple Claude Code instances in parallel, each with a specialized role.
-
-### Architecture
-- **Ralph-loop**: Each agent runs in an infinite cycle: clone → read board → claim task → work → commit → sync → repeat
-- **File-per-task board**: Tasks stored as individual JSON files in `.drive/agents/tasks/` to avoid git merge conflicts
-- **File-based locks**: `.drive/agents/locks/` with heartbeat-based staleness detection (2h default)
-- **Git sync**: Agents push/pull to shared upstream repo; push conflicts serve as natural lock arbitration
-
-### Runtimes
-
-| | Docker | DevPod |
-|---|---|---|
-| **Where** | Local machine | Cloud VM (AWS, GCP, K8s) |
-| **Cost** | Free | Pay-per-use |
-| **Scale** | 3-5 agents | 20+ agents |
-| **Setup** | Docker Desktop | `devpod` CLI + cloud provider |
-
-### Agent Roles
-- **implementer** — Claims tasks, writes code with TDD, runs tests, commits
-- **reviewer** — Reviews recent commits, posts messages for issues (never modifies source)
-- **docs** — Updates documentation based on recent changes
-- **janitor** — Scans for lint/quality issues, posts messages (never auto-fixes)
-
-### Commands
-- `scripts/run-agents.sh` — Launch the agent fleet
-- `scripts/stop-agents.sh` — Stop all agents
-- `scripts/agent-status.sh` — Show fleet status
-- `/board` — Interactive task board management
-
-### Agent Config
-Fleet configuration lives in `.drive/agents/config.json`. Set `runtime` to `docker` or `devpod`.
-
-### When Running as an Agent
-When `AGENT_ROLE` env var is set, `session_start.py` delegates to `agent_session_start.py` which injects board state and messages instead of the normal interactive init.
-
 ## Code Standards
 - Domain errors in core, technical errors in adapters
 - Constructor injection for dependencies

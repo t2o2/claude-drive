@@ -222,18 +222,6 @@ def main() -> int:
 
     project_dir = get_project_dir()
 
-    # Agent mode delegation
-    if os.environ.get("AGENT_ROLE"):
-        agent_hook = os.path.join(os.path.dirname(__file__), "agent_session_start.py")
-        if os.path.exists(agent_hook):
-            result = subprocess.run(
-                [sys.executable, agent_hook],
-                capture_output=False,
-                timeout=10,
-                cwd=project_dir,
-            )
-            return result.returncode
-
     output_parts = []
 
     # 1. Environment summary
