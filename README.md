@@ -21,6 +21,8 @@ Start a Claude Code session — everything activates automatically.
 - **Progress tracking** — each session's work, decisions, and failed approaches are logged to `.drive/claude-progress.txt`. Next session starts with full context.
 - **Context continuity** — warns at 75% context usage, auto-saves state at 88% so the next session can resume seamlessly.
 - **TDD enforcement** — editing source without tests triggers a reminder.
+- **Production validation** — validates implementation works in production, not just tests. Catches issues like path resolution, environment differences, and framework-specific gotchas before deployment.
+- **Framework gotchas database** — prevents common test-production gaps (Flask paths, React imports, CORS, etc.)
 - **Auto-commit** — session end commits tracked file changes with a `wip:` message.
 - **Telegram notifications** — optional session summaries and task intake between sessions.
 
@@ -40,7 +42,17 @@ For complex features (5+ files, new architecture):
 /spec "Add user authentication"
 ```
 
-Three phases: **Plan** (JSON plan + dual-agent review) → **Implement** (TDD per task) → **Verify** (compliance + quality review).
+Three phases: **Plan** (JSON plan + dual-agent review) → **Implement** (TDD per task + production validation) → **Verify** (compliance + quality review).
+
+### Enhanced Workflow (v2)
+
+The enhanced spec workflow includes production validation gates:
+
+1. **Plan** - Create detailed plan with test strategy and validation criteria
+2. **Implement** - TDD cycles + framework gotcha checks + production validator
+3. **Verify** - Dual-agent review + full test suite + production smoke tests
+
+See [Production Validation Framework](docs/PRODUCTION_VALIDATION.md) for details.
 
 ## Plugin Structure
 
@@ -53,13 +65,19 @@ claude-drive/
 │   ├── spec.md
 │   ├── spec-plan.md
 │   ├── spec-implement.md
+│   ├── spec-implement-v2.md         # NEW: With production validation
 │   ├── spec-verify.md
 │   └── comment.md
+├── docs/                    # Documentation
+│   └── PRODUCTION_VALIDATION.md     # NEW: Validation framework guide
 ├── agents/                  # Spec review subagents
 │   ├── plan-challenger.md
 │   ├── plan-verifier.md
 │   ├── spec-reviewer-compliance.md
-│   └── spec-reviewer-quality.md
+│   ├── spec-reviewer-quality.md
+│   ├── production-validator.md      # NEW: Production environment validation
+│   ├── framework-gotchas.md         # NEW: Test-production gap prevention
+│   └── plan-template-enhanced.md    # NEW: Enhanced plan structure
 ├── hooks/                   # Lifecycle hooks
 │   ├── hooks.json
 │   ├── session_start.py
