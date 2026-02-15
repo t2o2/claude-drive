@@ -1,4 +1,4 @@
-# Project Rules
+# Claude Drive
 
 ## Session Init Sequence
 
@@ -34,7 +34,7 @@ Rules:
 - The hook injects only the last 2 blocks, so earlier history won't bloat context
 - Always record failed approaches — this is critical for preventing retry loops
 
-## Session Continuity Protocol
+## Context Continuation
 
 1. **On session start:** If `.drive/sessions/continuation.md` exists, read it immediately, follow the "Next Steps" section, then delete the file.
 2. **During work:** When you receive a context warning from the context monitor hook, immediately:
@@ -68,25 +68,58 @@ Rules:
 - Plans live in `docs/plans/` as JSON files (models resist corrupting JSON structures)
 - Each phase has guardrails enforced by hooks and rules
 
-## Test Strategy
+## Complexity Triage
 
-Context is precious. Minimize test output during development:
+| Complexity | Criteria | Action |
+|-----------|----------|--------|
+| **Simple** | 1-2 files, clear fix | Execute directly |
+| **Medium** | 3-4 files, well-defined | Use TaskCreate for tracking |
+| **Complex** | 5+ files, new patterns, architecture | Suggest `/spec` |
 
-- **During RED/GREEN cycles:** Run ONLY the specific test file, not the full suite
-  - Python: `uv run pytest tests/test_<module>.py -x 2>&1 | tail -20`
-  - TypeScript: `npx vitest run <file>.test.ts 2>&1 | tail -20`
-  - Rust: `cargo test <module_name> 2>&1 | tail -20`
-- **At phase boundaries (REFACTOR, task complete):** Run full suite, piped through `| tail -30`
-- **Full suite:** Maximum 3 times per session. Log full output to `.drive/test-output.log`
-- **Always pipe test output through `| tail -N`** to cap context usage
+## TDD: RED → GREEN → REFACTOR
 
-## Verification Requirements
+When writing or modifying source code, follow this cycle:
 
-**Never claim success without evidence.** Always:
-- Run tests and show actual output
-- Run type checker and show actual output
-- Run linter and show actual output
-- Include command + output in your response
+1. **RED** — Write a failing test first. Run ONLY the specific test file. It MUST fail.
+2. **GREEN** — Write minimal code to pass. Run ONLY the specific test file. It MUST pass.
+3. **REFACTOR** — Clean up without changing behavior. Run full suite piped through `| tail -30`.
+
+When TDD applies:
+- **Mandatory** during `/spec` implementation phase
+- **Encouraged** in quick mode for non-trivial logic
+- **Skipped** for config files, scripts, documentation, trivial changes
+
+### Fast Test Commands
+
+| Language | Targeted (RED/GREEN) | Full Suite (REFACTOR) |
+|----------|---------------------|-----------------------|
+| Python | `uv run pytest tests/test_<module>.py -x 2>&1 \| tail -20` | `uv run pytest 2>&1 \| tail -30` |
+| TypeScript | `npx vitest run <file>.test.ts 2>&1 \| tail -20` | `npm test 2>&1 \| tail -30` |
+| Rust | `cargo test <module_name> 2>&1 \| tail -20` | `cargo test 2>&1 \| tail -30` |
+
+Full suite: Maximum 3 times per session. Log full output to `.drive/test-output.log`.
+
+## Verification Before Completion
+
+**Never claim success without evidence.** Always paste actual command output.
+
+Before setting a task's `passes: true` or a plan's `status: "COMPLETE"`:
+
+1. **Test evidence** — EXACT command + output (minimum 3 lines) with pass indicator
+2. **Linter evidence** — EXACT linter command + output showing zero warnings
+3. **Type checker evidence** — EXACT type check command + output (if applicable)
+
+Anti-patterns: "All tests pass" without output. Showing only the last line. Marking `passes: true` after a failing test.
+
+## Coding Standards
+
+- Core business logic = standalone library with zero external dependencies
+- Domain errors in core, technical errors in adapters
+- Constructor injection for dependencies
+- Comments explain "why", not "what"
+- Fix all lint warnings — zero tolerance
+- No dead code, no commented-out code
+- Structured logging at system boundaries only
 
 ## Language Standards
 
@@ -135,24 +168,15 @@ Rules:
 
 On first use (no `.drive/config.json`), the session start hook prompts you to run `/setup`. This command interviews the user for project name, language, TDD strictness, and optional Telegram notifications, then saves config to `.drive/config.json`.
 
-## Telegram Feedback
-
-Users can send tasks/feedback to the Telegram bot between sessions. On next session start, `session_start.py` polls `getUpdates` and adds new messages to `config.tasks[]`. Use `/comment` to view, work on, mark done, or dismiss tasks. Completed task count is included in session-end Telegram notifications.
-
-### Telegram Pairing
-
-Only approved senders can submit feedback via Telegram. During `/setup`, a 6-digit pairing code is generated and stored in `telegram.pairing_code`. The user must send this code as their first message to the bot. Once verified, their `user_id` is added to `telegram.approved_senders` and future messages are processed as tasks. Use `/comment` → "Manage pairing" to view approved senders, regenerate the code, or revoke access.
-
 ## Session End Behavior
 
 The `session_end.py` Stop hook runs automatically when a session ends:
 1. **Auto-commit** — commits tracked file changes with a `wip: <summary>` message
 2. **Progress reminder** — warns if `.drive/claude-progress.txt` wasn't updated
-3. **Telegram notification** — sends a session summary if configured in `.drive/config.json` (includes completed task count)
+3. **Telegram notification** — sends a session summary if configured in `.drive/config.json`
 
-## Code Standards
-- Domain errors in core, technical errors in adapters
-- Constructor injection for dependencies
-- Structured logging at boundaries
-- Comments explain "why", not "what"
-- Fix all lint warnings — zero tolerance
+## Telegram Feedback
+
+Users can send tasks/feedback to the Telegram bot between sessions. On next session start, `session_start.py` polls `getUpdates` and adds new messages to `config.tasks[]`. Use `/comment` to view, work on, mark done, or dismiss tasks.
+
+Only approved senders can submit feedback. During `/setup`, a 6-digit pairing code is generated. Send it to your bot as the first message to pair.

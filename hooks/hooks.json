@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session_start.py",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py\"",
             "timeout": 5
           }
         ]
@@ -18,12 +18,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/file_checker.py",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/file_checker.py\"",
             "timeout": 30
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tdd_enforcer.py",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/tdd_enforcer.py\"",
             "timeout": 10
           }
         ]
@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/context_monitor.py",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/context_monitor.py\"",
             "timeout": 10
           }
         ]
@@ -44,12 +44,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/context_monitor.py",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/context_monitor.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session_end.py",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_end.py\"",
             "timeout": 30
           }
         ]

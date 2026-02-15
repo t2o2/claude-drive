@@ -1,0 +1,11 @@
+{
+  "name": "claude-drive",
+  "description": "Framework for long-running Claude Code sessions — progress tracking, context continuity, TDD enforcement, and spec workflows",
+  "version": "1.0.0",
+  "author": {
+    "name": "t2o2"
+  },
+  "repository": "https://github.com/t2o2/claude-drive",
+  "license": "MIT",
+  "keywords": ["sessions", "progress", "tdd", "spec", "continuity"]
+}
