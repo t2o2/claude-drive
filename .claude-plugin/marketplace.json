@@ -9,7 +9,7 @@
       "name": "claude-drive",
       "description": "Progress tracking, context continuity, TDD enforcement, and spec workflows",
       "source": "./",
-      "version": "1.0.0"
+      "version": "1.0.1"
     }
   ]
 }

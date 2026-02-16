@@ -1,7 +1,7 @@
 {
   "name": "claude-drive",
   "description": "Framework for long-running Claude Code sessions — progress tracking, context continuity, TDD enforcement, and spec workflows",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "t2o2"
   },
