@@ -5,7 +5,11 @@ Claude Code plugin for long-running sessions. Tracks progress across sessions, p
 ## Install
 
 ```bash
-claude plugin install claude-drive@t2o2/claude-drive
+# Install from GitHub
+claude plugin install https://github.com/t2o2/claude-drive
+
+# Or install a specific version/tag
+claude plugin install https://github.com/t2o2/claude-drive#v1.0.1
 ```
 
 Or test locally during development:
