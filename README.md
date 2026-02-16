@@ -26,10 +26,10 @@ Start a Claude Code session — everything activates automatically.
 - **Auto-commit** — session end commits tracked file changes with a `wip:` message.
 - **Telegram notifications** — optional session summaries and task intake between sessions.
 
-## Skills
+## Commands
 
-| Skill | Description |
-|-------|-------------|
+| Command | Description |
+|---------|-------------|
 | `/setup` | First-run config — project name, language, TDD strictness, Telegram |
 | `/spec` | Spec-driven development: Plan → Implement (TDD) → Verify |
 | `/comment` | View and manage Telegram feedback/tasks |
@@ -58,18 +58,16 @@ See [Production Validation Framework](docs/PRODUCTION_VALIDATION.md) for details
 claude-drive/
 ├── .claude-plugin/
 │   └── plugin.json          # Plugin manifest
-├── skills/                  # User-invocable skills
-│   ├── setup/
-│   │   └── SKILL.md
-│   ├── spec/
-│   │   └── SKILL.md
+├── commands/                # User-invocable slash commands
+│   ├── setup.md
+│   ├── spec.md              # Dispatcher for spec workflow
+│   └── comment.md
+├── skills/                  # Internal skills (called by commands)
 │   ├── spec-plan/
 │   │   └── SKILL.md
 │   ├── spec-implement/      # Includes production validation
 │   │   └── SKILL.md
-│   ├── spec-verify/
-│   │   └── SKILL.md
-│   └── comment/
+│   └── spec-verify/
 │       └── SKILL.md
 ├── docs/                    # Documentation
 │   └── PRODUCTION_VALIDATION.md     # NEW: Validation framework guide
